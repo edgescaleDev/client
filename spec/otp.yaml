@@ -1,0 +1,174 @@
+openapi: 3.0.3
+info:
+  title: Edgescale OTP API
+  version: 0.1.0
+servers:
+  - url: https://{uid}.projects.apisdomain.dev
+    variables:
+      uid:
+        default: k3x9m2q7pa
+        description: The project's uid, in its Settings.
+security:
+  - apiKey: []
+paths:
+  /v1/otp/codes:
+    post:
+      description: |
+        `400` is a number outside the project's countries. `409` is a project whose settings were never
+        saved. `429` is over a limit, with `Retry-After`: 1 code a minute and 5 an hour to one number, and
+        the project's daily cap.
+      operationId: sendCode
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewCode'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/SentCode'
+                    type: object
+          description: The code is stored, and sent unless `send` was false
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Make a code, or take the app's, supersede the phone's open one, and send it. Needs otp write.
+  /v1/otp/codes/check:
+    post:
+      operationId: checkCode
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CodeCheck'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/CheckResult'
+                    type: object
+          description: Whether it matched. A match uses the code up.
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Check a code against the phone's open one. A wrong code is `valid` false, not an error. Needs otp write.
+components:
+  responses:
+    Failure:
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Envelope'
+              - properties:
+                  result:
+                    nullable: true
+                type: object
+      description: A failure. `success` is false and `result` is null.
+  schemas:
+    CheckResult:
+      properties:
+        valid:
+          type: boolean
+      required:
+        - valid
+      type: object
+    CodeCheck:
+      properties:
+        code:
+          type: string
+        phone:
+          type: string
+      required:
+        - phone
+        - code
+      type: object
+    Envelope:
+      properties:
+        errors:
+          items:
+            $ref: '#/components/schemas/Message'
+          type: array
+        messages:
+          items:
+            $ref: '#/components/schemas/Message'
+          type: array
+        success:
+          type: boolean
+      required:
+        - success
+        - errors
+        - messages
+        - result
+      type: object
+    Message:
+      properties:
+        code:
+          minimum: 1000
+          type: integer
+        documentation_url:
+          format: uri
+          type: string
+        message:
+          type: string
+        source:
+          properties:
+            pointer:
+              description: A JSON Pointer to the field at fault.
+              type: string
+          type: object
+      required:
+        - code
+        - message
+      type: object
+    NewCode:
+      properties:
+        code:
+          description: The app's own code, of the settings' code_length digits. Without it, OTP makes one.
+          type: string
+        expires_in:
+          description: Seconds; the settings' code_expires_in without it.
+          maximum: 900
+          minimum: 30
+          type: integer
+        phone:
+          description: E.164, such as +9647701234567
+          type: string
+        send:
+          default: true
+          description: False stores the code and sends nothing, for a code the app passes on itself. It isn't counted.
+          type: boolean
+      required:
+        - phone
+      type: object
+    SentCode:
+      properties:
+        code:
+          description: Only for a test key, when the number isn't a test number and nothing was sent.
+          type: string
+        expires_at:
+          format: date-time
+          type: string
+        id:
+          format: uuid
+          type: string
+      required:
+        - id
+        - expires_at
+      type: object
+  securitySchemes:
+    apiKey:
+      description: A platform API key, `eds_ak_…` or `eds_ak_test_…`, listing the project, with otp access.
+      scheme: bearer
+      type: http
