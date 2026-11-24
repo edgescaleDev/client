@@ -106,19 +106,23 @@ func TestHeaders(t *testing.T) {
 		c, r := newClient(t, client.WithKey("eds_ak_one"), client.WithServerSecret("eds_as_two"))
 		c.Billing.ListPlans(ctx, nil)
 		c.Auth.AdminGetUser(ctx, "123")
+		c.Auth.SignIn(ctx, &auth.SignInParams{}, auth.SignIn{ClientId: "app"})
 		if a, b := r.reqs[0].Header.Get("Authorization"), r.reqs[1].Header.Get("Authorization"); a != "Bearer eds_ak_one" || b != "Bearer eds_as_two" {
 			t.Fatalf("billing %q, auth %q", a, b)
 		}
+		if h := r.reqs[2].Header; h.Get("Edgescale-Server-Secret") != "eds_as_two" || h.Get("Authorization") != "" {
+			t.Fatalf("a sign-in got %v", h)
+		}
 	})
 
-	t.Run("a key alone, on auth's server API", func(t *testing.T) {
+	t.Run("a key alone, on auth: the bearer on the server API, the server secret on the rest", func(t *testing.T) {
 		c, r := newClient(t, client.WithKey("eds_ak_one"))
 		c.Auth.AdminGetUser(ctx, "123")
 		c.Auth.SignIn(ctx, &auth.SignInParams{}, auth.SignIn{ClientId: "app"})
-		if a := r.reqs[0].Header.Get("Authorization"); a != "Bearer eds_ak_one" {
-			t.Fatalf("the server API got %q", a)
+		if h := r.reqs[0].Header; h.Get("Authorization") != "Bearer eds_ak_one" || h.Get("Edgescale-Server-Secret") != "" {
+			t.Fatalf("the server API got %v", h)
 		}
-		if h := r.reqs[1].Header; h.Get("Authorization") != "" || h.Get("Edgescale-Server-Secret") != "" {
+		if h := r.reqs[1].Header; h.Get("Edgescale-Server-Secret") != "eds_ak_one" || h.Get("Authorization") != "" {
 			t.Fatalf("a sign-in got %v", h)
 		}
 	})
