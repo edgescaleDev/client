@@ -36,6 +36,14 @@ func (r *recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 
 const ok = `{"success":true,"errors":[],"messages":[],"result":null}`
 
+// tracked is a body that says whether it was closed.
+type tracked struct {
+	io.Reader
+	closed bool
+}
+
+func (b *tracked) Close() error { b.closed = true; return nil }
+
 // TestHeaders checks where each product's calls go, and that each gets the
 // credential it takes: the key on billing and OTP; the server secret as the
 // bearer on auth's server API and as Edgescale-Server-Secret on the rest.
@@ -124,6 +132,18 @@ func TestHeaders(t *testing.T) {
 		}
 	})
 
+	t.Run("a nil HTTP client keeps the default", func(t *testing.T) {
+		c, err := client.New("k3x9m2q7pa", client.WithKey("eds_ak_one"), client.WithHTTPClient(nil))
+		if err != nil {
+			t.Fatal(err)
+		}
+		done, cancel := context.WithCancel(ctx)
+		cancel() // so the default client never dials
+		if _, err := client.Decode[[]billing.Plan](c.Billing.ListPlans(done, nil)); !errors.Is(err, context.Canceled) {
+			t.Fatalf("%v", err)
+		}
+	})
+
 	t.Run("New refuses", func(t *testing.T) {
 		if _, err := client.New("k3x9m2q7pa"); err == nil {
 			t.Error("no credential")
@@ -200,8 +220,18 @@ func TestDecode(t *testing.T) {
 	t.Run("a failure in front of the API", func(t *testing.T) {
 		_, err := client.Decode[otp.SentCode](answer(526, nil, "<html>Invalid SSL certificate</html>"))
 		var e *client.Error
-		if !errors.As(err, &e) || e.Status != 526 || len(e.Errors) != 0 {
-			t.Fatalf("%v", err)
+		if !errors.As(err, &e) || e.Status != 526 || len(e.Errors) != 0 || e.Error() != "edgescale: 526" {
+			t.Fatalf("%q", err)
+		}
+	})
+
+	t.Run("the body is read to its end and closed", func(t *testing.T) {
+		body := &tracked{Reader: strings.NewReader(ok + strings.Repeat(" ", 32<<10))} // past the decoder's buffer
+		if _, err := client.Decode[*auth.Tokens](&http.Response{StatusCode: 200, Header: http.Header{}, Body: body}, nil); err != nil {
+			t.Fatal(err)
+		}
+		if rest, _ := io.ReadAll(body.Reader); len(rest) != 0 || !body.closed {
+			t.Fatalf("%d bytes left, closed %v", len(rest), body.closed)
 		}
 	})
 

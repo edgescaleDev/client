@@ -46,7 +46,10 @@ type Error struct {
 
 func (e *Error) Error() string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "edgescale: %d %s", e.Status, http.StatusText(e.Status))
+	fmt.Fprintf(&b, "edgescale: %d", e.Status)
+	if s := http.StatusText(e.Status); s != "" {
+		b.WriteString(" " + s)
+	}
 	for _, m := range e.Errors {
 		fmt.Fprintf(&b, "; %d %s", m.Code, m.Message)
 	}
@@ -73,7 +76,12 @@ func Read[T any](res *http.Response, err error) (Answer[T], error) {
 	if err != nil {
 		return a, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		// What's left after the envelope, read to the end, lets the
+		// connection serve the next call.
+		io.Copy(io.Discard, io.LimitReader(res.Body, 64<<10))
+		res.Body.Close()
+	}()
 	var e struct {
 		Errors     []Message       `json:"errors"`
 		Messages   []Message       `json:"messages"`

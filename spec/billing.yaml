@@ -2454,7 +2454,7 @@ components:
           description: Periods run from starts_at instead of calendar periods.
           type: boolean
         change:
-          description: 'Required when an active subscription moves to another plan, and read at no other time. upgrade is made now: the new plan''s prices for the rest of the period, less what the period paid for in advance, on one invoice. It keeps the interval and currency, keeps whatever was paid for in advance, and starts with the seats it has; fewer seats wait for the next period. downgrade is made at the period''s end. Either is refused where Lago can''t make it that way: then end the subscription at its period_end and start a new one then, with continues.'
+          description: 'Required when an active subscription moves to another plan, and read at no other time. upgrade is made now: the new plan''s prices for the rest of the period, less what the period paid for in advance, on one invoice. It keeps the interval and currency, keeps whatever was paid for in advance, and starts with the seats it has; fewer seats wait for the next period. downgrade is made at the period''s end. Either is refused where billing can''t make it that way: then end the subscription at its period_end and start a new one then, with continues.'
           enum:
             - upgrade
             - downgrade

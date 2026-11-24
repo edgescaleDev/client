@@ -1240,7 +1240,7 @@ type QuoteSubscription struct {
 	// Anniversary Periods run from starts_at instead of calendar periods.
 	Anniversary *bool `json:"anniversary,omitempty"`
 
-	// Change Required when an active subscription moves to another plan, and read at no other time. upgrade is made now: the new plan's prices for the rest of the period, less what the period paid for in advance, on one invoice. It keeps the interval and currency, keeps whatever was paid for in advance, and starts with the seats it has; fewer seats wait for the next period. downgrade is made at the period's end. Either is refused where Lago can't make it that way: then end the subscription at its period_end and start a new one then, with continues.
+	// Change Required when an active subscription moves to another plan, and read at no other time. upgrade is made now: the new plan's prices for the rest of the period, less what the period paid for in advance, on one invoice. It keeps the interval and currency, keeps whatever was paid for in advance, and starts with the seats it has; fewer seats wait for the next period. downgrade is made at the period's end. Either is refused where billing can't make it that way: then end the subscription at its period_end and start a new one then, with continues.
 	Change *QuoteSubscriptionChange `json:"change,omitempty"`
 
 	// Continues Set only when the subscription is made: the ID of another of the customer's subscriptions, whose ends_at is this one's starts_at. This one's first period then opens like a renewal, so on a pay_first plan its first invoice holds nothing back, and the lock decides if it's unpaid. After a downgrade made at the period's end, it is the subscription's own ID.
@@ -1265,7 +1265,7 @@ type QuoteSubscription struct {
 	StartsAt *time.Time `json:"starts_at,omitempty"`
 }
 
-// QuoteSubscriptionChange Required when an active subscription moves to another plan, and read at no other time. upgrade is made now: the new plan's prices for the rest of the period, less what the period paid for in advance, on one invoice. It keeps the interval and currency, keeps whatever was paid for in advance, and starts with the seats it has; fewer seats wait for the next period. downgrade is made at the period's end. Either is refused where Lago can't make it that way: then end the subscription at its period_end and start a new one then, with continues.
+// QuoteSubscriptionChange Required when an active subscription moves to another plan, and read at no other time. upgrade is made now: the new plan's prices for the rest of the period, less what the period paid for in advance, on one invoice. It keeps the interval and currency, keeps whatever was paid for in advance, and starts with the seats it has; fewer seats wait for the next period. downgrade is made at the period's end. Either is refused where billing can't make it that way: then end the subscription at its period_end and start a new one then, with continues.
 type QuoteSubscriptionChange string
 
 // Rate A price per unit, which may be finer than the currency's minor unit.
@@ -1342,7 +1342,7 @@ type Subscription struct {
 	// Anniversary Periods run from starts_at instead of calendar periods.
 	Anniversary *bool `json:"anniversary,omitempty"`
 
-	// Change Required when an active subscription moves to another plan, and read at no other time. upgrade is made now: the new plan's prices for the rest of the period, less what the period paid for in advance, on one invoice. It keeps the interval and currency, keeps whatever was paid for in advance, and starts with the seats it has; fewer seats wait for the next period. downgrade is made at the period's end. Either is refused where Lago can't make it that way: then end the subscription at its period_end and start a new one then, with continues.
+	// Change Required when an active subscription moves to another plan, and read at no other time. upgrade is made now: the new plan's prices for the rest of the period, less what the period paid for in advance, on one invoice. It keeps the interval and currency, keeps whatever was paid for in advance, and starts with the seats it has; fewer seats wait for the next period. downgrade is made at the period's end. Either is refused where billing can't make it that way: then end the subscription at its period_end and start a new one then, with continues.
 	Change *SubscriptionChange `json:"change,omitempty"`
 
 	// Continues Set only when the subscription is made: the ID of another of the customer's subscriptions, whose ends_at is this one's starts_at. This one's first period then opens like a renewal, so on a pay_first plan its first invoice holds nothing back, and the lock decides if it's unpaid. After a downgrade made at the period's end, it is the subscription's own ID.
@@ -1375,7 +1375,7 @@ type Subscription struct {
 	Status   SubscriptionStatus `json:"status"`
 }
 
-// SubscriptionChange Required when an active subscription moves to another plan, and read at no other time. upgrade is made now: the new plan's prices for the rest of the period, less what the period paid for in advance, on one invoice. It keeps the interval and currency, keeps whatever was paid for in advance, and starts with the seats it has; fewer seats wait for the next period. downgrade is made at the period's end. Either is refused where Lago can't make it that way: then end the subscription at its period_end and start a new one then, with continues.
+// SubscriptionChange Required when an active subscription moves to another plan, and read at no other time. upgrade is made now: the new plan's prices for the rest of the period, less what the period paid for in advance, on one invoice. It keeps the interval and currency, keeps whatever was paid for in advance, and starts with the seats it has; fewer seats wait for the next period. downgrade is made at the period's end. Either is refused where billing can't make it that way: then end the subscription at its period_end and start a new one then, with continues.
 type SubscriptionChange string
 
 // SubscriptionStatus defines model for Subscription.Status.
@@ -1389,7 +1389,7 @@ type SubscriptionBody struct {
 	// Anniversary Periods run from starts_at instead of calendar periods.
 	Anniversary *bool `json:"anniversary,omitempty"`
 
-	// Change Required when an active subscription moves to another plan, and read at no other time. upgrade is made now: the new plan's prices for the rest of the period, less what the period paid for in advance, on one invoice. It keeps the interval and currency, keeps whatever was paid for in advance, and starts with the seats it has; fewer seats wait for the next period. downgrade is made at the period's end. Either is refused where Lago can't make it that way: then end the subscription at its period_end and start a new one then, with continues.
+	// Change Required when an active subscription moves to another plan, and read at no other time. upgrade is made now: the new plan's prices for the rest of the period, less what the period paid for in advance, on one invoice. It keeps the interval and currency, keeps whatever was paid for in advance, and starts with the seats it has; fewer seats wait for the next period. downgrade is made at the period's end. Either is refused where billing can't make it that way: then end the subscription at its period_end and start a new one then, with continues.
 	Change *SubscriptionBodyChange `json:"change,omitempty"`
 
 	// Continues Set only when the subscription is made: the ID of another of the customer's subscriptions, whose ends_at is this one's starts_at. This one's first period then opens like a renewal, so on a pay_first plan its first invoice holds nothing back, and the lock decides if it's unpaid. After a downgrade made at the period's end, it is the subscription's own ID.
@@ -1411,7 +1411,7 @@ type SubscriptionBody struct {
 	StartsAt *time.Time `json:"starts_at,omitempty"`
 }
 
-// SubscriptionBodyChange Required when an active subscription moves to another plan, and read at no other time. upgrade is made now: the new plan's prices for the rest of the period, less what the period paid for in advance, on one invoice. It keeps the interval and currency, keeps whatever was paid for in advance, and starts with the seats it has; fewer seats wait for the next period. downgrade is made at the period's end. Either is refused where Lago can't make it that way: then end the subscription at its period_end and start a new one then, with continues.
+// SubscriptionBodyChange Required when an active subscription moves to another plan, and read at no other time. upgrade is made now: the new plan's prices for the rest of the period, less what the period paid for in advance, on one invoice. It keeps the interval and currency, keeps whatever was paid for in advance, and starts with the seats it has; fewer seats wait for the next period. downgrade is made at the period's end. Either is refused where billing can't make it that way: then end the subscription at its period_end and start a new one then, with continues.
 type SubscriptionBodyChange string
 
 // Summary defines model for Summary.

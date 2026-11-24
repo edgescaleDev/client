@@ -46,9 +46,15 @@ func WithServerSecret(secret string) Option { return func(o *options) { o.secret
 // and dev.edgescale.dev for dev.
 func WithZone(zone string) Option { return func(o *options) { o.zone = zone } }
 
-// WithHTTPClient sends every call through hc, http.DefaultClient unless set.
-// Its timeouts and retries are the caller's.
-func WithHTTPClient(hc *http.Client) Option { return func(o *options) { o.hc = hc } }
+// WithHTTPClient sends every call through hc, http.DefaultClient unless set;
+// nil keeps the default. Its timeouts and retries are the caller's.
+func WithHTTPClient(hc *http.Client) Option {
+	return func(o *options) {
+		if hc != nil {
+			o.hc = hc
+		}
+	}
+}
 
 // New is a client for one project, by its uid. It needs a key, a server
 // secret, or both.
