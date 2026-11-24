@@ -3,7 +3,7 @@
 The Go client for Edgescale's products. It's for your backend:
 
 - **billing and OTP** take your project's platform key
-- **auth's server API** takes a server app's secret
+- **auth's server API** takes a server app's secret, or the key with auth access
 
 ```bash
 go get github.com/edgescaleDev/client
@@ -52,8 +52,13 @@ A server app's secret, `eds_as_…`, is made in the project's Auth tab. The clie
   tokens, err := client.Decode[auth.Tokens](c.Auth.SignIn(ctx, &auth.SignInParams{EdgescaleClientAddress: &addr}, body))
   ```
 
-- **One client can hold both credentials:** `client.New(uid, client.WithKey(…), client.WithServerSecret(…))`.
-- **A platform key** will reach auth's server API later. Until then, auth refuses one.
+- **Or use the platform key,** with auth access set in the dashboard. With no secret, the client sends the key in the
+  secret's place:
+  - `read` looks a user up, lists their sessions, and searches
+  - `write` does the rest, signing a person in included
+  - a test key, `eds_ak_test_…`, is refused with a 403: auth has no test mode
+- **One client can hold both credentials:** `client.New(uid, client.WithKey(…), client.WithServerSecret(…))`. Auth then
+  gets the secret.
 
 ## Errors
 
@@ -71,6 +76,7 @@ if errors.As(err, &e) && e.Has(1007) {
 |---|---|---|
 | 1000 | 500 | our own failure |
 | 1001 | 401 | a missing, wrong or revoked key or secret |
+| 1002 | 403 | not allowed, such as a key without the access, or a test key where there's no test mode |
 | 1003 | 404 | not found |
 | 1004 | 400 | a request that can't be read |
 | 1005 | 422 | an invalid field |
