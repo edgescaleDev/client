@@ -2,6 +2,7 @@ openapi: 3.0.3
 info:
   title: Edgescale Identity API
   version: 0.1.0
+  x-source: 714f7c3fc02c34a48e5e3a3abbf2ec4af83e411b
 servers:
   - url: https://{uid}.auth.apisdomain.dev
     variables:
@@ -38,6 +39,7 @@ paths:
           $ref: '#/components/responses/Failure'
       security:
         - serverApp: []
+        - apiKey: []
       summary: Import up to 100 users, with their bcrypt hashes
   /v1/admin/users:
     post:
@@ -68,6 +70,7 @@ paths:
           $ref: '#/components/responses/Failure'
       security:
         - serverApp: []
+        - apiKey: []
       summary: Make a user, with our ID or yours
   /v1/admin/users/{user}:
     get:
@@ -95,6 +98,7 @@ paths:
           $ref: '#/components/responses/Failure'
       security:
         - serverApp: []
+        - apiKey: []
       summary: A user
     patch:
       description: |
@@ -133,6 +137,7 @@ paths:
           $ref: '#/components/responses/Failure'
       security:
         - serverApp: []
+        - apiKey: []
       summary: Change a user's email, phone, password, or whether they're disabled
   /v1/admin/users/{user}/codes:
     post:
@@ -169,6 +174,7 @@ paths:
           $ref: '#/components/responses/Failure'
       security:
         - serverApp: []
+        - apiKey: []
       summary: A sign-in code for a user with a phone, handed to you instead of sent
   /v1/admin/users/{user}/sessions:
     delete:
@@ -200,6 +206,7 @@ paths:
           $ref: '#/components/responses/Failure'
       security:
         - serverApp: []
+        - apiKey: []
       summary: Sign a user out everywhere, or everywhere but one session
     get:
       description: Newest use first, with why each ended one ended.
@@ -228,6 +235,7 @@ paths:
           $ref: '#/components/responses/Failure'
       security:
         - serverApp: []
+        - apiKey: []
       summary: A user's sessions, ended ones included
   /v1/admin/users/{user}/sessions/{session}:
     delete:
@@ -256,6 +264,7 @@ paths:
           $ref: '#/components/responses/Failure'
       security:
         - serverApp: []
+        - apiKey: []
       summary: End one of a user's sessions
   /v1/admin/users/search:
     post:
@@ -289,6 +298,7 @@ paths:
           $ref: '#/components/responses/Failure'
       security:
         - serverApp: []
+        - apiKey: []
       summary: The one user who holds an email or a phone
   /v1/codes:
     post:
@@ -1039,16 +1049,24 @@ components:
           type: string
       type: object
   securitySchemes:
+    apiKey:
+      description: |
+        A platform key, `eds_ak_…`, that lists the pool's project, with auth
+        access: `read` for a user, their sessions and a search, `write` for
+        the rest. A hosted pool only. A test key is refused with a 403.
+      scheme: bearer
+      type: http
     serverApp:
       description: A server app's secret, `eds_as_…`, made in the dashboard's Auth tab.
       scheme: bearer
       type: http
     serverSecret:
       description: |
-        A server app's secret, `eds_as_…`, from a backend that calls for one
-        of its users. With it, auth records only what the
-        `Edgescale-Client-*` headers say about the person, never the
-        backend's own address. A wrong secret is a 401.
+        A server app's secret, `eds_as_…`, or a platform key, `eds_ak_…`,
+        with auth `write`, from a backend that calls for one of its users.
+        With it, auth records only what the `Edgescale-Client-*` headers say
+        about the person, never the backend's own address. A wrong one is a
+        401, and a key without auth `write` a 403.
       in: header
       name: Edgescale-Server-Secret
       type: apiKey
