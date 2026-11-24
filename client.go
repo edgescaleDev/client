@@ -1,6 +1,6 @@
 // Package client calls Edgescale's products from a backend: billing and OTP
 // with the project's platform key, and auth's server API with a server app's
-// secret.
+// secret or the key.
 //
 //	c, err := client.New("k3x9m2q7pa", client.WithKey(os.Getenv("EDGESCALE_KEY")))
 //	plans, err := client.Decode[[]billing.Plan](c.Billing.ListPlans(ctx, nil))
@@ -23,7 +23,7 @@ import (
 type Client struct {
 	Billing billing.ClientInterface // takes the key
 	OTP     otp.ClientInterface     // takes the key
-	Auth    auth.ClientInterface    // takes the server secret, or the key once auth checks keys
+	Auth    auth.ClientInterface    // takes the server secret, or the key when there's no secret
 }
 
 // Option is one of New's settings.
@@ -93,19 +93,19 @@ func (o *options) bearer(_ context.Context, r *http.Request) error {
 	return nil
 }
 
-// auth sends the server secret: as the bearer on the server API, /v1/admin,
-// and as Edgescale-Server-Secret on the routes a backend calls for its users,
-// so auth never records the backend's own address as a person's. A key alone
-// goes as the server API's bearer, which auth refuses until it checks keys.
+// auth sends the server secret, or the key when there's no secret: as the
+// bearer on the server API, /v1/admin, and as Edgescale-Server-Secret on the
+// routes a backend calls for its users, so auth never records the backend's
+// own address as a person's.
 func (o *options) auth(_ context.Context, r *http.Request) error {
-	admin := strings.HasPrefix(r.URL.Path, "/v1/admin/")
-	switch {
-	case o.secret != "" && admin:
-		r.Header.Set("Authorization", "Bearer "+o.secret)
-	case o.secret != "":
-		r.Header.Set("Edgescale-Server-Secret", o.secret)
-	case admin:
-		r.Header.Set("Authorization", "Bearer "+o.key)
+	credential := o.secret
+	if credential == "" {
+		credential = o.key
+	}
+	if strings.HasPrefix(r.URL.Path, "/v1/admin/") {
+		r.Header.Set("Authorization", "Bearer "+credential)
+	} else {
+		r.Header.Set("Edgescale-Server-Secret", credential)
 	}
 	return nil
 }
