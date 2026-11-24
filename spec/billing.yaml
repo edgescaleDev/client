@@ -1,0 +1,2560 @@
+openapi: 3.0.3
+info:
+  title: Edgescale Billing API
+  version: 0.1.0
+servers:
+  - url: https://{uid}.projects.apisdomain.dev
+    variables:
+      uid:
+        default: k3x9m2q7pa
+        description: The project's uid, in its Settings.
+security:
+  - apiKey: []
+paths:
+  /v1/billing/apps:
+    get:
+      operationId: listApps
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        items:
+                          $ref: '#/components/schemas/App'
+                        type: array
+                    type: object
+          description: Every app in the catalog
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: List the payment apps a project can install, with its installs
+  /v1/billing/apps/{app}/forward:
+    parameters:
+      - $ref: '#/components/parameters/appId'
+    put:
+      description: |
+        For an app whose gateway has one notification address per merchant
+        (`forwards` is true), billing posts each notification that isn't
+        about one of its own payments to this URL, as received, with
+        `Edgescale-Forwarded: billing` added. Anything but a 2xx is retried
+        for about three weeks. An empty URL stops forwarding.
+
+        Only a notification whose gateway signature checks out is forwarded,
+        and a replay of one only once a day, so the app's signing setting
+        comes first: for Qi, its public key. Setting a URL without it is a
+        409. One that doesn't check out is answered 400, so the gateway sends
+        a real one again.
+      operationId: putAppForward
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                url:
+                  description: An https URL on the public internet, or empty.
+                  type: string
+              required:
+                - url
+              type: object
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/App'
+                    type: object
+          description: The app
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Set where your own notifications from the gateway go
+  /v1/billing/checkouts/{checkout}:
+    get:
+      operationId: getCheckout
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/Checkout'
+                    type: object
+          description: The checkout
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Get a checkout, to show its outcome
+    parameters:
+      - in: path
+        name: checkout
+        required: true
+        schema:
+          format: uuid
+          type: string
+  /v1/billing/checkouts/{checkout}/cancel:
+    parameters:
+      - in: path
+        name: checkout
+        required: true
+        schema:
+          format: uuid
+          type: string
+    post:
+      description: |
+        Stops the payment at its gateway, so it can no longer be paid and
+        stops holding its invoice: start another for the payer who gave up
+        on the gateway's page. Cancelling one cancelled already returns it.
+        A checkout with an outcome, or one its gateway is processing or has
+        paid, is a 409. Billing also cancels checkouts itself once money
+        recorded on their invoice leaves no room for them.
+      operationId: cancelCheckout
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/Checkout'
+                    type: object
+          description: The checkout, cancelled
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Cancel a checkout the payer hasn't finished
+  /v1/billing/coupons:
+    get:
+      operationId: listCoupons
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/perPage'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        items:
+                          $ref: '#/components/schemas/Coupon'
+                        type: array
+                      result_info:
+                        $ref: '#/components/schemas/PageInfo'
+                    required:
+                      - result_info
+                    type: object
+          description: A page of coupons
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: List coupons
+  /v1/billing/coupons/{code}:
+    delete:
+      operationId: deleteCoupon
+      responses:
+        "200":
+          $ref: '#/components/responses/Done'
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Delete a coupon. Customers who already have it keep it.
+    parameters:
+      - $ref: '#/components/parameters/code'
+    put:
+      operationId: putCoupon
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CouponBody'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/Coupon'
+                    type: object
+          description: The coupon as stored
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Create or update a coupon
+  /v1/billing/credit-notes:
+    get:
+      operationId: listCreditNotes
+      parameters:
+        - description: Only this customer's.
+          in: query
+          name: customer
+          schema:
+            type: string
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/perPage'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        items:
+                          $ref: '#/components/schemas/CreditNote'
+                        type: array
+                      result_info:
+                        $ref: '#/components/schemas/PageInfo'
+                    required:
+                      - result_info
+                    type: object
+          description: A page of credit notes, newest first
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: List the project's credit notes
+  /v1/billing/credit-notes/{credit_note}:
+    get:
+      operationId: getCreditNote
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/CreditNote'
+                    type: object
+          description: The credit note
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Get a credit note
+    parameters:
+      - $ref: '#/components/parameters/creditNoteId'
+  /v1/billing/customers:
+    get:
+      operationId: listCustomers
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/perPage'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        items:
+                          $ref: '#/components/schemas/Customer'
+                        type: array
+                      result_info:
+                        $ref: '#/components/schemas/PageInfo'
+                    required:
+                      - result_info
+                    type: object
+          description: A page of customers
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: List customers
+  /v1/billing/customers/{id}:
+    get:
+      operationId: getCustomer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/Customer'
+                    type: object
+          description: The customer
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Get a customer
+    parameters:
+      - $ref: '#/components/parameters/id'
+    put:
+      operationId: putCustomer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerBody'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/Customer'
+                    type: object
+          description: The customer as stored
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Create or update a customer, under your own ID for it
+  /v1/billing/customers/{id}/coupons:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    post:
+      operationId: applyCoupon
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                code:
+                  type: string
+              required:
+                - code
+              type: object
+        required: true
+      responses:
+        "200":
+          $ref: '#/components/responses/Done'
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Give the customer a coupon
+  /v1/billing/customers/{id}/entitlements:
+    get:
+      description: The features of every plan the customer holds an active subscription to. Keep your own copy and gate on it; don't call this on each of your requests.
+      operationId: getEntitlements
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/Entitlements'
+                    type: object
+          description: The customer's entitlements
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: What the customer may use now
+    parameters:
+      - $ref: '#/components/parameters/id'
+  /v1/billing/events:
+    post:
+      description: Up to 100 events at a time. An event whose id was recorded before is skipped, so a batch can be sent again safely.
+      operationId: recordEvents
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                events:
+                  items:
+                    $ref: '#/components/schemas/Event'
+                  maxItems: 100
+                  minItems: 1
+                  type: array
+              required:
+                - events
+              type: object
+        required: true
+      responses:
+        "202":
+          $ref: '#/components/responses/Done'
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Report usage
+  /v1/billing/features:
+    get:
+      operationId: listFeatures
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/perPage'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        items:
+                          $ref: '#/components/schemas/Feature'
+                        type: array
+                      result_info:
+                        $ref: '#/components/schemas/PageInfo'
+                    required:
+                      - result_info
+                    type: object
+          description: A page of features
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: List features
+  /v1/billing/features/{code}:
+    delete:
+      operationId: deleteFeature
+      responses:
+        "200":
+          $ref: '#/components/responses/Done'
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Delete a feature, and remove it from every plan
+    parameters:
+      - $ref: '#/components/parameters/code'
+    put:
+      operationId: putFeature
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeatureBody'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/Feature'
+                    type: object
+          description: The feature as stored
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Create or update a feature
+  /v1/billing/invoices:
+    get:
+      operationId: listInvoices
+      parameters:
+        - description: Only this customer's.
+          in: query
+          name: customer
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            enum:
+              - issued
+              - paid
+              - voided
+            type: string
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/perPage'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        items:
+                          $ref: '#/components/schemas/Invoice'
+                        type: array
+                      result_info:
+                        $ref: '#/components/schemas/PageInfo'
+                    required:
+                      - result_info
+                    type: object
+          description: A page of invoices
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: List invoices
+  /v1/billing/invoices/{invoice}:
+    get:
+      operationId: getInvoice
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/Invoice'
+                    type: object
+          description: The invoice
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Get an invoice
+    parameters:
+      - $ref: '#/components/parameters/invoiceId'
+  /v1/billing/invoices/{invoice}/checkouts:
+    parameters:
+      - $ref: '#/components/parameters/invoiceId'
+    post:
+      description: |
+        Opens a payment on one of the project's apps and returns the
+        gateway's page to send the payer to, `payer_url`. The reference is
+        your own and makes this safe to send again: the same reference
+        returns the first checkout, and one reused for another invoice,
+        amount or app is a 409. The amount defaults to what is still due,
+        and can't be more. Unless the project's payment settings allow
+        overlapping checkouts, a pending checkout holds its amount: the
+        default amount is what's left, and one that doesn't fit is a 409
+        naming the pending checkouts, so you can send the payer back to one.
+        Billing follows the payment itself and marks the
+        invoice paid once its payments cover it; read the checkout on your
+        return page to show the outcome. A checkout without `payer_url`
+        hasn't reached the gateway yet: send the same request again. While
+        the app's gateway refuses the project's settings, this is a 409
+        until they're updated.
+      operationId: startCheckout
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckoutBody'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/Checkout'
+                    type: object
+          description: The checkout
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Start a payment through an installed app
+  /v1/billing/invoices/{invoice}/credit-notes:
+    get:
+      operationId: listInvoiceCreditNotes
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        items:
+                          $ref: '#/components/schemas/CreditNote'
+                        type: array
+                    type: object
+          description: Every credit note on the invoice, oldest first
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: List an invoice's credit notes
+    parameters:
+      - $ref: '#/components/parameters/invoiceId'
+    post:
+      description: |
+        Credits the invoice, whole or in part, by amount or by line, with a
+        reason. What's still due comes off first; the rest goes back as
+        `return` says, as a refund or as credit off the customer's next
+        invoices, and needs money paid on the invoice to come from. A credit
+        note is final, and numbered in the project's one sequence. The
+        reference is your own and makes this safe to send again: the same
+        reference returns the first credit note, and one reused for a
+        different one is a 409. Once nothing is due, the invoice is marked
+        paid. A 503 after that means the credit note is recorded but the
+        invoice isn't yet marked paid; send the same request again.
+      operationId: createCreditNote
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreditNoteBody'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/CreditNote'
+                    type: object
+          description: The credit note
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Take value off an issued invoice
+  /v1/billing/invoices/{invoice}/payments:
+    get:
+      operationId: listPayments
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        items:
+                          $ref: '#/components/schemas/Payment'
+                        type: array
+                    type: object
+          description: Every payment, oldest first
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: List the payments recorded against an invoice
+    parameters:
+      - $ref: '#/components/parameters/invoiceId'
+    post:
+      description: |
+        Records money you collected outside billing, by your own gateway, a
+        transfer or cash, against the invoice. The reference is your own and
+        makes this safe to send again: the same reference returns the first
+        payment, and a reference reused for a different payment is a 409. Once
+        the payments cover the invoice it is marked paid. A 503 after that
+        means the payment is recorded but the invoice is not yet marked paid;
+        send the same request again.
+      operationId: recordPayment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentBody'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/Payment'
+                    type: object
+          description: The payment as recorded
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Report a payment you collected yourself
+  /v1/billing/invoices/{invoice}/pdf:
+    get:
+      description: The PDF is rendered on first request; until it is ready this answers 503 with Retry-After.
+      operationId: getInvoicePdf
+      responses:
+        "200":
+          content:
+            application/pdf:
+              schema:
+                format: binary
+                type: string
+          description: The PDF
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Download an invoice as a PDF
+    parameters:
+      - $ref: '#/components/parameters/invoiceId'
+  /v1/billing/invoices/{invoice}/refunds:
+    get:
+      operationId: listRefunds
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        items:
+                          $ref: '#/components/schemas/Refund'
+                        type: array
+                    type: object
+          description: Every refund on the invoice, oldest first
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: List an invoice's refunds
+    parameters:
+      - $ref: '#/components/parameters/invoiceId'
+    post:
+      description: |
+        Pays out a credit note's refund part, or gives back money paid twice.
+        Without `refunded_at`, billing refunds through the app the payment
+        was made on, and follows the refund until it has an outcome; a
+        refund made at the gateway's own dashboard for the same amount is
+        taken as this one instead of refunding again. With it, it records
+        money you gave back yourself, on a payment its app can't refund.
+        Billing never holds the money: it comes from your own gateway
+        account. The reference is your own and makes this safe to send
+        again: the same reference returns the first refund, and one reused
+        for a different refund is a 409.
+      operationId: createRefund
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefundBody'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/Refund'
+                    type: object
+          description: The refund, pending until the gateway answers
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Give money back on one of an invoice's payments
+  /v1/billing/lock:
+    get:
+      operationId: getLock
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/Lock'
+                    type: object
+          description: The lock
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Whether unpaid invoices lock customers' features
+    put:
+      description: A change sends entitlements.updated for every customer with an active subscription.
+      operationId: putLock
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Lock'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/Lock'
+                    type: object
+          description: The lock, as stored
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Set whether unpaid invoices lock customers' features
+  /v1/billing/meters:
+    get:
+      operationId: listMeters
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/perPage'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        items:
+                          $ref: '#/components/schemas/Meter'
+                        type: array
+                      result_info:
+                        $ref: '#/components/schemas/PageInfo'
+                    required:
+                      - result_info
+                    type: object
+          description: A page of meters
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: List meters
+  /v1/billing/meters/{code}:
+    delete:
+      operationId: deleteMeter
+      responses:
+        "200":
+          $ref: '#/components/responses/Done'
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Delete a meter, and every charge on it
+    get:
+      operationId: getMeter
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/Meter'
+                    type: object
+          description: The meter
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Get a meter
+    parameters:
+      - $ref: '#/components/parameters/code'
+    put:
+      operationId: putMeter
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MeterBody'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/Meter'
+                    type: object
+          description: The meter as stored
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Create or update a meter
+  /v1/billing/payment-settings:
+    get:
+      operationId: getPaymentSettings
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/PaymentSettings'
+                    type: object
+          description: The payment settings
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: What a pending checkout holds
+    put:
+      description: A change applies to checkouts started after it.
+      operationId: putPaymentSettings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentSettings'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/PaymentSettings'
+                    type: object
+          description: The payment settings, as stored
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Set what a pending checkout holds
+  /v1/billing/plans:
+    get:
+      operationId: listPlans
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/perPage'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        items:
+                          $ref: '#/components/schemas/Plan'
+                        type: array
+                      result_info:
+                        $ref: '#/components/schemas/PageInfo'
+                    required:
+                      - result_info
+                    type: object
+          description: A page of plans
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: List plans
+  /v1/billing/plans/{code}:
+    delete:
+      description: |
+        Refused (422) while a subscription is on the plan or waits to move to it, since its
+        features come from the plan.
+      operationId: deletePlan
+      responses:
+        "200":
+          $ref: '#/components/responses/Done'
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Delete a plan
+    get:
+      operationId: getPlan
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/Plan'
+                    type: object
+          description: The plan
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Get a plan
+    parameters:
+      - $ref: '#/components/parameters/code'
+    put:
+      description: |
+        The plan's charges and features become exactly the ones sent; one left out is removed.
+        A subscription keeps the prices its plan had when it subscribed, so a price change
+        reaches only subscriptions made or moved to the plan after it. A feature change reaches
+        every subscription to the plan at once.
+      operationId: putPlan
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanBody'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/Plan'
+                    type: object
+          description: The plan as stored
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Create or update a plan
+  /v1/billing/quotes:
+    post:
+      description: 'Prices exactly one of subscription, seats and renewal: the lines billed at once, as the invoice will have them. Lines billed in arrears, coupons and credits aren''t in it. The quote is kept until the end of its UTC day, since proration is by the day. A new subscription starts when the quote is accepted, so it takes no starts_at. A plan change on an existing subscription isn''t quoted (422).'
+      operationId: createQuote
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuoteBody'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/Quote'
+                    type: object
+          description: The quote
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Price a new subscription, a seat change or a renewal, as of now
+  /v1/billing/quotes/{quote}:
+    get:
+      operationId: getQuote
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/Quote'
+                    type: object
+          description: The quote
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Get a quote
+    parameters:
+      - $ref: '#/components/parameters/quoteId'
+  /v1/billing/quotes/{quote}/accept:
+    parameters:
+      - $ref: '#/components/parameters/quoteId'
+    post:
+      description: 'A new subscription is made from the plans as they were quoted, so its first invoice is the quote even if a plan changed since. With pay_first, it gives nothing until that invoice is paid. Accepting again returns the first acceptance, so it''s safe to retry. An expired quote is refused (422): quote again. A renewal''s quote can''t be accepted (422).'
+      operationId: acceptQuote
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/Quote'
+                    type: object
+          description: The quote, accepted
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Make the quoted change at the quote's prices
+  /v1/billing/subscriptions:
+    get:
+      operationId: listSubscriptions
+      parameters:
+        - in: query
+          name: customer
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/perPage'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        items:
+                          $ref: '#/components/schemas/Subscription'
+                        type: array
+                      result_info:
+                        $ref: '#/components/schemas/PageInfo'
+                    required:
+                      - result_info
+                    type: object
+          description: A page of subscriptions
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: List a customer's active and pending subscriptions
+  /v1/billing/subscriptions/{id}:
+    delete:
+      operationId: terminateSubscription
+      responses:
+        "200":
+          $ref: '#/components/responses/Done'
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: End a subscription now and bill what is due
+    get:
+      operationId: getSubscription
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/Subscription'
+                    type: object
+          description: The subscription
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Get a subscription
+    parameters:
+      - $ref: '#/components/parameters/id'
+    put:
+      description: |
+        A new ID creates the subscription. For an existing one, a different
+        plan moves it: an upgrade starts now, and a downgrade waits for the end
+        of the period, showing meanwhile as next_plan. Seats are set to the
+        number sent, so send the current count to leave them alone.
+      operationId: putSubscription
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionBody'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/Subscription'
+                    type: object
+          description: The subscription as stored
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Create a subscription, or change its plan or seats
+  /v1/billing/subscriptions/{id}/seats:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    put:
+      description: Seats billed in advance bill an increase now, prorated, all on one invoice, and a decrease from the next period. Seats billed in arrears change now.
+      operationId: setSeats
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                add_ons:
+                  additionalProperties:
+                    minimum: 0
+                    type: integer
+                  description: Each add-on's seats, by its plan's code. An add-on left out keeps its seats.
+                  type: object
+                quantity:
+                  description: The plan's seats.
+                  minimum: 0
+                  type: integer
+              required:
+                - quantity
+              type: object
+        required: true
+      responses:
+        "200":
+          $ref: '#/components/responses/Done'
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Set the seats of the subscription's plan and its add-ons from now on
+  /v1/billing/subscriptions/{id}/upgrade/cancel:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    post:
+      description: Voids the upgrade's invoice and puts the subscription back on its old plan, at the prices it was bought at, from the next period; its old plan, seats and add-ons apply to this period's end. Under the unpaid_upgrades setting revert, billing does this itself once the invoice is past due. 409 when the subscription has no unpaid upgrade, 503 until the upgrade's invoice is issued, and 422 for an upgrade that changed the plan's fee, which can't be taken back.
+      operationId: cancelUpgrade
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/Subscription'
+                    type: object
+          description: The subscription, back on its old plan.
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Take back an unpaid upgrade
+  /v1/billing/summary:
+    get:
+      description: |
+        The project's country, currency and when billing was turned on, and
+        the invoices issued since a date: how many, and their totals, one per
+        currency, since billing never converts. Voided invoices count for
+        neither.
+      operationId: getSummary
+      parameters:
+        - description: Count invoices issued on this date (UTC) or after. Thirty days ago when left out.
+          in: query
+          name: since
+          schema:
+            format: date
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/Summary'
+                    type: object
+          description: The summary
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: How the project bills, and what it invoiced lately
+  /v1/billing/webhook-endpoints:
+    get:
+      operationId: listWebhookEndpoints
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        items:
+                          $ref: '#/components/schemas/WebhookEndpoint'
+                        type: array
+                    type: object
+          description: Every endpoint, oldest first, without secrets
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: List the project's webhook endpoints
+    post:
+      description: |
+        Billing posts invoice.issued, invoice.paid, invoice.voided,
+        credit_note.created, refund.succeeded, refund.failed and
+        entitlements.updated events to it, signed per Standard Webhooks (https://www.standardwebhooks.com)
+        with the secret returned here, once. Anything but a 2xx is retried
+        with backoff for about three weeks; the same event keeps its
+        webhook-id across retries.
+      operationId: addWebhookEndpoint
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                url:
+                  description: An https URL on the public internet.
+                  type: string
+              required:
+                - url
+              type: object
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/NewWebhookEndpoint'
+                    type: object
+          description: The endpoint, with its signing secret, which is not shown again
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Register a webhook endpoint
+  /v1/billing/webhook-endpoints/{endpoint}:
+    delete:
+      operationId: removeWebhookEndpoint
+      responses:
+        "200":
+          $ref: '#/components/responses/Done'
+        default:
+          $ref: '#/components/responses/Failure'
+      summary: Remove a webhook endpoint, and stop its pending deliveries
+    parameters:
+      - in: path
+        name: endpoint
+        required: true
+        schema:
+          type: string
+components:
+  parameters:
+    appId:
+      description: The app's id, such as qi.
+      in: path
+      name: app
+      required: true
+      schema:
+        pattern: ^[a-z0-9]{1,30}$
+        type: string
+    code:
+      in: path
+      name: code
+      required: true
+      schema:
+        pattern: ^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$
+        type: string
+    creditNoteId:
+      in: path
+      name: credit_note
+      required: true
+      schema:
+        format: uuid
+        type: string
+    id:
+      description: Your own ID for it.
+      in: path
+      name: id
+      required: true
+      schema:
+        pattern: ^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,99}$
+        type: string
+    invoiceId:
+      description: The invoice's id, as billing gave it.
+      in: path
+      name: invoice
+      required: true
+      schema:
+        type: string
+    page:
+      in: query
+      name: page
+      schema:
+        default: 1
+        minimum: 1
+        type: integer
+    perPage:
+      in: query
+      name: per_page
+      schema:
+        default: 20
+        maximum: 100
+        minimum: 1
+        type: integer
+    quoteId:
+      in: path
+      name: quote
+      required: true
+      schema:
+        format: uuid
+        type: string
+  responses:
+    Done:
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Envelope'
+              - properties:
+                  result:
+                    nullable: true
+                type: object
+      description: Done, with nothing to return. `result` is null.
+    Failure:
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Envelope'
+              - properties:
+                  result:
+                    nullable: true
+                type: object
+      description: A failure. `success` is false and `result` is null.
+  schemas:
+    AddOn:
+      properties:
+        plan:
+          description: The add-on plan's code.
+          type: string
+        seats:
+          default: 0
+          description: Only on an add-on plan with seats.
+          minimum: 0
+          type: integer
+      required:
+        - plan
+      type: object
+    Address:
+      properties:
+        city:
+          type: string
+        country:
+          description: ISO 3166-1 alpha-2.
+          type: string
+        line1:
+          type: string
+        line2:
+          type: string
+        state:
+          type: string
+        zip:
+          type: string
+      type: object
+    App:
+      properties:
+        caps:
+          properties:
+            off_session:
+              type: boolean
+            partial_refund:
+              type: boolean
+            refund:
+              type: boolean
+            status:
+              type: boolean
+          required:
+            - status
+            - refund
+            - partial_refund
+            - off_session
+          type: object
+        currencies:
+          items:
+            type: string
+          type: array
+        fields:
+          description: The install form.
+          items:
+            properties:
+              key:
+                type: string
+              label:
+                type: string
+              required:
+                type: boolean
+              secret:
+                description: Never shown again once saved.
+                type: boolean
+            required:
+              - key
+              - label
+              - secret
+              - required
+            type: object
+          type: array
+        forward_url:
+          description: Where your own notifications go; absent when not forwarding.
+          type: string
+        forwards:
+          description: Whether your own notifications can be forwarded (PUT …/forward).
+          type: boolean
+        id:
+          example: qi
+          type: string
+        installed:
+          type: boolean
+        name:
+          type: string
+        rejected_at:
+          description: When the gateway refused the saved settings; absent unless it has.
+          format: date-time
+          type: string
+        settings:
+          additionalProperties:
+            type: string
+          description: The saved fields, secret ones empty. Empty when not installed.
+          type: object
+        webhook_url:
+          description: Where the gateway sends its notifications for this project.
+          type: string
+      required:
+        - id
+        - name
+        - currencies
+        - caps
+        - fields
+        - forwards
+        - installed
+        - settings
+        - webhook_url
+      type: object
+    Charge:
+      description: Prices one meter, billed at the end of each period.
+      properties:
+        meter:
+          type: string
+        model:
+          enum:
+            - per_unit
+            - graduated
+          type: string
+        price:
+          $ref: '#/components/schemas/Rate'
+        tiers:
+          items:
+            $ref: '#/components/schemas/Tier'
+          type: array
+      required:
+        - meter
+        - model
+      type: object
+    Checkout:
+      allOf:
+        - $ref: '#/components/schemas/Payment'
+        - properties:
+            expires_at:
+              description: When the gateway stops taking the payment.
+              format: date-time
+              type: string
+            payer_url:
+              description: The gateway's page to send the payer to; absent until the gateway answers.
+              type: string
+          required:
+            - expires_at
+          type: object
+    CheckoutBody:
+      properties:
+        amount:
+          $ref: '#/components/schemas/Money'
+        app:
+          description: An installed app's id, such as qi.
+          type: string
+        reference:
+          description: Your own reference for the payment, unique in the project.
+          type: string
+        return_url:
+          description: Where the gateway sends the payer afterwards. Nothing that arrives on it is trusted.
+          type: string
+      required:
+        - app
+        - reference
+        - return_url
+      type: object
+    Coupon:
+      allOf:
+        - properties:
+            code:
+              type: string
+          required:
+            - code
+          type: object
+        - $ref: '#/components/schemas/CouponBody'
+    CouponBody:
+      description: Takes exactly one of amount_off and percent_off.
+      properties:
+        amount_off:
+          $ref: '#/components/schemas/Money'
+        duration:
+          enum:
+            - once
+            - repeating
+            - forever
+          type: string
+        expires_at:
+          format: date-time
+          type: string
+        name:
+          type: string
+        percent_off:
+          description: A percentage to two decimal places.
+          example: "12.5"
+          type: string
+        periods:
+          description: Billing periods, when duration is repeating.
+          minimum: 1
+          type: integer
+      required:
+        - name
+        - duration
+      type: object
+    CreditNote:
+      properties:
+        created_at:
+          format: date-time
+          type: string
+        credit:
+          $ref: '#/components/schemas/Money'
+        customer:
+          type: string
+        description:
+          type: string
+        id:
+          format: uuid
+          type: string
+        invoice:
+          type: string
+        lines:
+          description: Empty when credited by amount.
+          items:
+            properties:
+              amount:
+                $ref: '#/components/schemas/Money'
+              description:
+                type: string
+              line:
+                type: string
+            required:
+              - line
+              - description
+              - amount
+            type: object
+          type: array
+        number:
+          description: The project's sequence, such as CN-000042.
+          type: string
+        offset:
+          $ref: '#/components/schemas/Money'
+        reason:
+          enum:
+            - duplicate
+            - fraudulent
+            - order_change
+            - order_cancellation
+            - product_unsatisfactory
+            - other
+          type: string
+        reference:
+          type: string
+        refund:
+          $ref: '#/components/schemas/Money'
+        refunded:
+          $ref: '#/components/schemas/Money'
+        taken_back_at:
+          description: When the upgrade that made it was taken back. It then counts for nothing on its invoice, and its credit was taken back; a later upgrade credits those lines again.
+          format: date-time
+          type: string
+        total:
+          $ref: '#/components/schemas/Money'
+      required:
+        - id
+        - number
+        - invoice
+        - customer
+        - reference
+        - reason
+        - description
+        - lines
+        - total
+        - refund
+        - refunded
+        - credit
+        - offset
+        - created_at
+      type: object
+    CreditNoteBody:
+      properties:
+        amount:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          description: An amount off the invoice's total. Send this or lines.
+        description:
+          maxLength: 1000
+          type: string
+        lines:
+          description: An amount off each line named, on an invoice without discounts or taxes. Send this or amount.
+          items:
+            properties:
+              amount:
+                $ref: '#/components/schemas/Money'
+              line:
+                description: The line's id, from the invoice.
+                type: string
+            required:
+              - line
+              - amount
+            type: object
+          minItems: 1
+          type: array
+        reason:
+          enum:
+            - duplicate
+            - fraudulent
+            - order_change
+            - order_cancellation
+            - product_unsatisfactory
+            - other
+          type: string
+        reference:
+          description: Your own reference for the credit note, unique in the project.
+          type: string
+        return:
+          description: 'Where the part beyond what''s due goes back: refund, money you give back through refunds, or credit, taken off the customer''s next invoices. Required when any part goes back.'
+          enum:
+            - refund
+            - credit
+          type: string
+      required:
+        - reference
+        - reason
+      type: object
+    Customer:
+      allOf:
+        - properties:
+            credit:
+              allOf:
+                - $ref: '#/components/schemas/Money'
+              description: 'On the read of one customer: the credit its credit notes gave it, not yet taken off its invoices. Absent before its currency is set.'
+            id:
+              type: string
+          required:
+            - id
+          type: object
+        - $ref: '#/components/schemas/CustomerBody'
+    CustomerBody:
+      properties:
+        address:
+          $ref: '#/components/schemas/Address'
+        currency:
+          description: Fixed by the customer's first subscription if left out.
+          type: string
+        email:
+          type: string
+        legal_name:
+          type: string
+        name:
+          type: string
+        tax_id:
+          type: string
+      type: object
+    EntitledAddOn:
+      properties:
+        plan:
+          type: string
+        seats:
+          description: The add-on's seats usable now, counted as the plan's are.
+          type: integer
+      required:
+        - plan
+        - seats
+      type: object
+    EntitledSubscription:
+      properties:
+        add_ons:
+          items:
+            $ref: '#/components/schemas/EntitledAddOn'
+          type: array
+        ends_at:
+          format: date-time
+          type: string
+        id:
+          type: string
+        invoice:
+          description: With pending_payment, the invoice to pay, once it's issued.
+          type: string
+        period_end:
+          format: date-time
+          type: string
+        plan:
+          type: string
+        seats:
+          description: 'The seats usable now. Billed in advance, they''re the included ones plus those its invoices billed for this period: on a pay_first plan the paid ones and the renewal, on any other all of them. Billed in arrears, they''re the count set. 0 on a plan without seats.'
+          type: integer
+        status:
+          description: pending_payment until the first invoice of a subscription to a pay_first plan is paid; its features don't count meanwhile.
+          enum:
+            - active
+            - pending_payment
+          type: string
+        upgrade:
+          description: An upgrade on a pay_first plan waiting for its invoice to be paid. Meanwhile plan, seats and add_ons are the old ones, still in force, and status stays active. Once it's paid, the new plan's apply.
+          properties:
+            invoice:
+              description: The upgrade's invoice, once it's issued.
+              type: string
+            plan:
+              description: The plan the upgrade moves to.
+              type: string
+          required:
+            - plan
+          type: object
+      required:
+        - id
+        - plan
+        - status
+        - seats
+        - add_ons
+        - period_end
+      type: object
+    Entitlements:
+      properties:
+        customer:
+          description: The customer's id.
+          type: string
+        features:
+          description: The feature codes usable now, sorted.
+          items:
+            type: string
+          type: array
+        invoice:
+          description: With past_due and locked, the oldest unpaid invoice past due.
+          type: string
+        locks_at:
+          description: With past_due and locked, when the features lock.
+          format: date-time
+          type: string
+        status:
+          description: 'active: the features apply. past_due: an invoice is unpaid past its due date, and the features apply until locks_at. locked: that invoice is still unpaid at locks_at, so features is empty. pending_payment: every subscription waits for its first invoice to be paid (pay_first), so features is empty. none: no active subscription, so features is empty. past_due and locked come only with the project''s lock on (GET /lock), and win over the others.'
+          enum:
+            - active
+            - past_due
+            - locked
+            - pending_payment
+            - none
+          type: string
+        subscriptions:
+          description: Every active subscription, by id, with what it gives now.
+          items:
+            $ref: '#/components/schemas/EntitledSubscription'
+          type: array
+      required:
+        - customer
+        - status
+        - features
+      type: object
+    Envelope:
+      properties:
+        errors:
+          items:
+            $ref: '#/components/schemas/Message'
+          type: array
+        messages:
+          items:
+            $ref: '#/components/schemas/Message'
+          type: array
+        success:
+          description: True on a 2xx and false otherwise.
+          type: boolean
+      required:
+        - success
+        - errors
+        - messages
+        - result
+      type: object
+    Event:
+      properties:
+        at:
+          description: Omit for now.
+          format: date-time
+          type: string
+        id:
+          description: Your idempotency key, unique per project.
+          type: string
+        meter:
+          type: string
+        properties:
+          additionalProperties:
+            type: string
+          description: Event fields, such as the one a meter aggregates.
+          type: object
+        subscription:
+          type: string
+      required:
+        - id
+        - subscription
+        - meter
+      type: object
+    Feature:
+      allOf:
+        - properties:
+            code:
+              type: string
+          required:
+            - code
+          type: object
+        - $ref: '#/components/schemas/FeatureBody'
+      description: Something a plan can include, which your app unlocks for customers whose subscriptions include it.
+    FeatureBody:
+      properties:
+        description:
+          type: string
+        name:
+          type: string
+      required:
+        - name
+      type: object
+    Invoice:
+      properties:
+        credited:
+          $ref: '#/components/schemas/Money'
+        customer:
+          type: string
+        due:
+          $ref: '#/components/schemas/Money'
+        due_at:
+          format: date
+          type: string
+        id:
+          type: string
+        issued_at:
+          format: date
+          type: string
+        lines:
+          description: On the read of one invoice only.
+          items:
+            $ref: '#/components/schemas/InvoiceLine'
+          type: array
+        number:
+          description: The number printed on the invoice.
+          type: string
+        status:
+          description: 'paid: nothing is due, by payments or credit notes.'
+          enum:
+            - issued
+            - paid
+            - voided
+          type: string
+        to_refund:
+          $ref: '#/components/schemas/Money'
+        total:
+          $ref: '#/components/schemas/Money'
+      required:
+        - id
+        - number
+        - customer
+        - status
+        - total
+        - credited
+        - due
+        - to_refund
+        - issued_at
+      type: object
+    InvoiceLine:
+      properties:
+        amount:
+          $ref: '#/components/schemas/Money'
+        creditable:
+          $ref: '#/components/schemas/Money'
+        description:
+          type: string
+        from:
+          format: date-time
+          type: string
+        id:
+          description: What a credit note names the line by.
+          type: string
+        kind:
+          enum:
+            - fee
+            - usage
+            - seats
+            - one_off
+          type: string
+        to:
+          format: date-time
+          type: string
+      required:
+        - id
+        - kind
+        - description
+        - from
+        - to
+        - amount
+        - creditable
+      type: object
+    Lock:
+      properties:
+        after_days:
+          description: Days after an invoice is past due (from 00:00 UTC the day after its due date) that its customer's features lock, while it stays unpaid. null, the default, never locks.
+          maximum: 365
+          minimum: 0
+          nullable: true
+          type: integer
+      required:
+        - after_days
+      type: object
+    Message:
+      properties:
+        code:
+          description: |
+            Which failure it is; branch on this. 1000 our failure, 1001 no
+            valid credentials, 1002 not allowed, 1003 not found, 1004 the
+            request can't be read, 1005 a field is invalid, 1006 conflict,
+            1007 too many requests, 1008 briefly unavailable (see
+            Retry-After), 1009 misconfigured on our side, 1010 a second
+            factor is required, 1011 the route doesn't take this method
+            (see Allow). In `messages`, which aren't failures: 2000 a
+            subscription ends inside a period a credit note has credited, so
+            the days after its end aren't credited; issue another credit note
+            if more is owed.
+          minimum: 1000
+          type: integer
+        documentation_url:
+          format: uri
+          type: string
+        message:
+          description: For people. Its wording may change.
+          type: string
+        source:
+          properties:
+            pointer:
+              description: A JSON Pointer to the field at fault.
+              type: string
+          type: object
+      required:
+        - code
+        - message
+      type: object
+    Meter:
+      allOf:
+        - properties:
+            code:
+              type: string
+          required:
+            - code
+          type: object
+        - $ref: '#/components/schemas/MeterBody'
+    MeterBody:
+      properties:
+        aggregation:
+          description: How a period's events become a quantity.
+          enum:
+            - count
+            - sum
+            - max
+            - unique_count
+            - latest
+          type: string
+        field:
+          description: The event property aggregated. Required unless aggregation is count.
+          type: string
+        name:
+          type: string
+      required:
+        - name
+        - aggregation
+      type: object
+    Money:
+      properties:
+        amount:
+          description: At most the currency's own decimals.
+          example: "49.00"
+          type: string
+        currency:
+          description: ISO 4217.
+          example: USD
+          type: string
+      required:
+        - amount
+        - currency
+      type: object
+    NewWebhookEndpoint:
+      allOf:
+        - $ref: '#/components/schemas/WebhookEndpoint'
+        - properties:
+            secret:
+              example: whsec_…
+              type: string
+          required:
+            - secret
+          type: object
+    PageInfo:
+      properties:
+        count:
+          description: The length of `result`.
+          type: integer
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_count:
+          type: integer
+        total_pages:
+          type: integer
+      required:
+        - page
+        - per_page
+        - count
+        - total_count
+        - total_pages
+      type: object
+    Payment:
+      properties:
+        amount:
+          $ref: '#/components/schemas/Money'
+        app:
+          description: The app it was charged through; null for one you reported.
+          nullable: true
+          type: string
+        id:
+          type: string
+        invoice:
+          type: string
+        paid_at:
+          description: When the money moved; absent until it has.
+          format: date-time
+          type: string
+        recorded_at:
+          format: date-time
+          type: string
+        reference:
+          description: Your own reference for the payment.
+          type: string
+        status:
+          enum:
+            - pending
+            - authorized
+            - succeeded
+            - failed
+            - cancelled
+            - expired
+          type: string
+      required:
+        - id
+        - invoice
+        - reference
+        - amount
+        - app
+        - status
+        - recorded_at
+      type: object
+    PaymentBody:
+      properties:
+        amount:
+          $ref: '#/components/schemas/Money'
+        paid_at:
+          description: When the money moved.
+          format: date-time
+          type: string
+        reference:
+          description: Your own reference for the payment, unique in the project.
+          type: string
+      required:
+        - reference
+        - amount
+        - paid_at
+      type: object
+    PaymentSettings:
+      properties:
+        pending_checkouts:
+          description: 'reserve, the default: a pending checkout holds its amount, so a new one fits only in what''s left due, and two checkouts never pay an invoice twice. allow: a pending checkout holds nothing, so two checkouts can each be paid in full, and you refund the extra yourself. Either way, a payment you report is recorded whatever is pending, since its money has already moved.'
+          enum:
+            - reserve
+            - allow
+          type: string
+        unpaid_upgrades:
+          description: 'What an upgrade does once its invoice is past due, unpaid. revert, the default: billing takes it back, so the customer keeps the plan they paid for to the period''s end, and renews on it. lock: the invoice is like any other, and the lock decides. Omitted on a PUT, it stays as it is.'
+          enum:
+            - revert
+            - lock
+          type: string
+      required:
+        - pending_checkouts
+      type: object
+    Plan:
+      allOf:
+        - properties:
+            code:
+              type: string
+          required:
+            - code
+          type: object
+        - $ref: '#/components/schemas/PlanBody'
+    PlanBody:
+      properties:
+        charges:
+          items:
+            $ref: '#/components/schemas/Charge'
+          type: array
+        features:
+          description: The codes of the features the plan includes. Leaving it out means none.
+          items:
+            type: string
+          type: array
+        fee:
+          $ref: '#/components/schemas/Money'
+        fee_in_advance:
+          default: false
+          description: Bill the fee at the start of each period.
+          type: boolean
+        interval:
+          description: semiannual renews every six months.
+          enum:
+            - weekly
+            - monthly
+            - quarterly
+            - semiannual
+            - yearly
+          type: string
+        name:
+          type: string
+        pay_first:
+          default: false
+          description: A new subscription gives nothing until its first invoice is paid, and seats added during a period count once their invoice is paid. A renewal holds nothing back; the lock decides what an unpaid one does. Like features, it follows the plan as it is now. A plan with it can't have trial days.
+          type: boolean
+        seats:
+          $ref: '#/components/schemas/Seats'
+        trial_days:
+          default: 0
+          minimum: 0
+          type: integer
+      required:
+        - name
+        - interval
+        - fee
+      type: object
+    Quote:
+      allOf:
+        - properties:
+            accepted_at:
+              format: date-time
+              type: string
+            created_at:
+              format: date-time
+              type: string
+            expires_at:
+              description: The end of the UTC day it was made.
+              format: date-time
+              type: string
+            id:
+              format: uuid
+              type: string
+            lines:
+              items:
+                $ref: '#/components/schemas/QuoteLine'
+              type: array
+            total:
+              $ref: '#/components/schemas/Money'
+          required:
+            - id
+            - lines
+            - total
+            - created_at
+            - expires_at
+          type: object
+        - $ref: '#/components/schemas/QuoteBody'
+    QuoteBody:
+      description: Exactly one of subscription, seats and renewal.
+      properties:
+        renewal:
+          $ref: '#/components/schemas/QuoteRenewal'
+        seats:
+          $ref: '#/components/schemas/QuoteSeats'
+        subscription:
+          $ref: '#/components/schemas/QuoteSubscription'
+      type: object
+    QuoteLine:
+      description: One line the change bills at once, as its invoice will have it.
+      properties:
+        add_on:
+          description: The add-on plan's code it bills; left out for the subscription's own plan.
+          type: string
+        amount:
+          $ref: '#/components/schemas/Money'
+        description:
+          description: The plan's name, an add-on's, or Seats.
+          type: string
+        from:
+          format: date-time
+          type: string
+        kind:
+          description: 'fee: the plan''s or an add-on''s fee. seats: seats billed. credit: an upgrade''s only, what a credit note gives back of what the period paid in advance, which comes off its invoice; its amount is negative.'
+          enum:
+            - fee
+            - seats
+            - credit
+          type: string
+        renewal:
+          description: It bills a period the subscription renews into.
+          type: boolean
+        seats:
+          description: A seats line's seats, before proration.
+          type: integer
+        to:
+          description: The period's last second.
+          format: date-time
+          type: string
+      required:
+        - kind
+        - description
+        - from
+        - to
+        - amount
+      type: object
+    QuoteRenewal:
+      description: What a subscription's next period bills at its start, as it stands. For showing; it can't be accepted.
+      properties:
+        subscription:
+          type: string
+      required:
+        - subscription
+      type: object
+    QuoteSeats:
+      description: A subscription's seats set to new counts, as PUT /subscriptions/{id}/seats would set them.
+      properties:
+        add_ons:
+          additionalProperties:
+            minimum: 0
+            type: integer
+          description: Each add-on's seats, by its plan's code. An add-on left out keeps its seats.
+          type: object
+        quantity:
+          description: The plan's seats.
+          minimum: 0
+          type: integer
+        subscription:
+          type: string
+      required:
+        - subscription
+        - quantity
+      type: object
+    QuoteSubscription:
+      allOf:
+        - properties:
+            id:
+              description: Your own ID for it.
+              pattern: ^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,99}$
+              type: string
+          required:
+            - id
+          type: object
+        - $ref: '#/components/schemas/SubscriptionBody'
+      description: 'A new subscription, as PUT /subscriptions/{id} would make it, without starts_at. Or an active one''s upgrade, with change: upgrade, between plans with no fee billed in advance: its lines are the upgrade''s invoice, each charge''s new price for the rest of the period, and a credit line for each line the period paid in advance, for the days left. A downgrade or a change of term isn''t quoted.'
+    Rate:
+      description: A price per unit, which may be finer than the currency's minor unit.
+      properties:
+        amount:
+          description: Up to 12 decimals.
+          example: "0.002"
+          type: string
+        currency:
+          example: USD
+          type: string
+      required:
+        - amount
+        - currency
+      type: object
+    Refund:
+      properties:
+        amount:
+          $ref: '#/components/schemas/Money'
+        app:
+          description: The app it was refunded through; null for one you reported.
+          nullable: true
+          type: string
+        credit_note:
+          format: uuid
+          nullable: true
+          type: string
+        id:
+          format: uuid
+          type: string
+        invoice:
+          type: string
+        payment:
+          format: uuid
+          type: string
+        reason:
+          description: 'A failed one''s: why, as the gateway said.'
+          type: string
+        recorded_at:
+          format: date-time
+          type: string
+        reference:
+          type: string
+        refunded_at:
+          description: When the money moved; absent until it has.
+          format: date-time
+          type: string
+        status:
+          enum:
+            - pending
+            - succeeded
+            - failed
+          type: string
+      required:
+        - id
+        - invoice
+        - payment
+        - reference
+        - amount
+        - status
+        - recorded_at
+      type: object
+    RefundBody:
+      properties:
+        amount:
+          $ref: '#/components/schemas/Money'
+        credit_note:
+          description: The credit note whose refund part this pays out. Leave it out to give back money paid twice.
+          format: uuid
+          type: string
+        payment:
+          description: The payment on the invoice the money goes back on.
+          format: uuid
+          type: string
+        reference:
+          description: Your own reference for the refund, unique in the project among refunds.
+          type: string
+        refunded_at:
+          description: 'For money you gave back yourself, by transfer or cash: when. Leave it out to refund through the app the payment was made on.'
+          format: date-time
+          type: string
+      required:
+        - reference
+        - payment
+        - amount
+      type: object
+    Seats:
+      description: The seats billed are the count set, or minimum if that is more, less included, never below zero. Each costs extra per period, prorated by day.
+      properties:
+        extra:
+          $ref: '#/components/schemas/Money'
+        in_advance:
+          default: false
+          description: Bill the seats at the start of each period, and seats added during one at once, prorated; fewer seats take effect at the next period. Otherwise they're billed at the period's end.
+          type: boolean
+        included:
+          description: Seats the fee covers.
+          minimum: 0
+          type: integer
+        minimum:
+          default: 0
+          description: The fewest seats billed, however few are set.
+          minimum: 0
+          type: integer
+      required:
+        - included
+        - extra
+      type: object
+    Subscription:
+      allOf:
+        - properties:
+            id:
+              type: string
+            next_plan:
+              description: A downgrade waiting for the end of the period.
+              type: string
+            period_end:
+              description: The end of an active subscription's current billing period, which is the next one's start, at 00:00 UTC.
+              format: date-time
+              readOnly: true
+              type: string
+            period_start:
+              description: An active subscription's current billing period starts here.
+              format: date-time
+              readOnly: true
+              type: string
+            status:
+              enum:
+                - pending
+                - active
+                - terminated
+              type: string
+          required:
+            - id
+            - status
+          type: object
+        - $ref: '#/components/schemas/SubscriptionBody'
+    SubscriptionBody:
+      properties:
+        add_ons:
+          description: 'Plans sold on the subscription, billed on its invoices, their features joining its own. Each has the plan''s interval and currency, and no usage charges or trial. A PUT replaces them: one added bills now, at its prices now; one left out bills nothing from the next period, or from now for what it bills in arrears.'
+          items:
+            $ref: '#/components/schemas/AddOn'
+          type: array
+        anniversary:
+          default: false
+          description: Periods run from starts_at instead of calendar periods.
+          type: boolean
+        change:
+          description: 'Required when an active subscription moves to another plan, and read at no other time. upgrade is made now: the new plan''s prices for the rest of the period, less what the period paid for in advance, on one invoice. It keeps the interval and currency, keeps whatever was paid for in advance, and starts with the seats it has; fewer seats wait for the next period. downgrade is made at the period''s end. Either is refused where billing can''t make it that way: then end the subscription at its period_end and start a new one then, with continues.'
+          enum:
+            - upgrade
+            - downgrade
+          type: string
+          writeOnly: true
+        continues:
+          description: 'Set only when the subscription is made: the ID of another of the customer''s subscriptions, whose ends_at is this one''s starts_at. This one''s first period then opens like a renewal, so on a pay_first plan its first invoice holds nothing back, and the lock decides if it''s unpaid. After a downgrade made at the period''s end, it is the subscription''s own ID.'
+          type: string
+        customer:
+          description: The customer's id.
+          type: string
+        ends_at:
+          description: Ends the subscription as this day starts, within the hour, without renewing it then. It must be 00:00 UTC, after now and after starts_at. To cancel at the period's end, send period_end. For a fixed term with anniversary periods, send the day starts_at falls on plus the term. Omit it to renew until the subscription is ended, since a PUT replaces the subscription.
+          format: date-time
+          type: string
+        plan:
+          description: The plan's code.
+          type: string
+        seats:
+          default: 0
+          description: Only on a plan with seats.
+          minimum: 0
+          type: integer
+        starts_at:
+          description: Omit to start now.
+          format: date-time
+          type: string
+      required:
+        - customer
+        - plan
+      type: object
+    Summary:
+      properties:
+        billing_since:
+          description: When billing was turned on for the project.
+          format: date-time
+          type: string
+        country:
+          description: Where the project sells from, ISO 3166-1. It can't change.
+          example: IQ
+          type: string
+        currency:
+          description: The default invoice currency. It can't change.
+          example: IQD
+          type: string
+        invoices:
+          properties:
+            issued:
+              description: Invoices issued from that day on, voided ones left out.
+              type: integer
+            since:
+              description: The first day counted.
+              format: date
+              type: string
+            totals:
+              description: Their totals, one per currency, the project's own first. Empty when none were issued.
+              items:
+                $ref: '#/components/schemas/Money'
+              type: array
+          required:
+            - since
+            - issued
+            - totals
+          type: object
+      required:
+        - country
+        - currency
+        - billing_since
+        - invoices
+      type: object
+    Tier:
+      properties:
+        flat:
+          $ref: '#/components/schemas/Money'
+        price:
+          $ref: '#/components/schemas/Rate'
+        up_to:
+          description: The tier's last unit. Omitted on the last tier.
+          format: int64
+          nullable: true
+          type: integer
+      required:
+        - price
+      type: object
+    WebhookEndpoint:
+      properties:
+        created_at:
+          format: date-time
+          type: string
+        id:
+          type: string
+        url:
+          type: string
+      required:
+        - id
+        - url
+        - created_at
+      type: object
+  securitySchemes:
+    apiKey:
+      description: A platform API key, `eds_ak_…`, for the project's workspace.
+      scheme: bearer
+      type: http

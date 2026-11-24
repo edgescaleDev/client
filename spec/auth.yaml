@@ -1,0 +1,1054 @@
+openapi: 3.0.3
+info:
+  title: Edgescale Identity API
+  version: 0.1.0
+servers:
+  - url: https://{uid}.auth.apisdomain.dev
+    variables:
+      uid:
+        default: k3x9m2q7pa
+        description: The project's uid, in its Settings.
+paths:
+  /v1/admin/imports:
+    post:
+      description: |
+        Each user keeps its `id`. One whose id exists is skipped, so an import
+        that stopped can run again. A taken or bad email or phone fails that
+        user alone, and the rest go on.
+      operationId: adminImportUsers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Import'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/ImportResult'
+                    type: object
+          description: What became of each user
+        default:
+          $ref: '#/components/responses/Failure'
+      security:
+        - serverApp: []
+      summary: Import up to 100 users, with their bcrypt hashes
+  /v1/admin/users:
+    post:
+      description: |
+        For the cases sign-up can't cover. Without `id`, the user gets a
+        UUIDv7, which is their tokens' sub. A taken email, phone or id is a
+        409.
+      operationId: adminCreateUser
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewUser'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/User'
+                    type: object
+          description: The user
+        default:
+          $ref: '#/components/responses/Failure'
+      security:
+        - serverApp: []
+      summary: Make a user, with our ID or yours
+  /v1/admin/users/{user}:
+    get:
+      operationId: adminGetUser
+      parameters:
+        - description: 'The user''s ID: their tokens'' sub.'
+          in: path
+          name: user
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/User'
+                    type: object
+          description: The user
+        default:
+          $ref: '#/components/responses/Failure'
+      security:
+        - serverApp: []
+      summary: A user
+    patch:
+      description: |
+        An email or phone another user holds is a 409. A new phone is set
+        verified, with sign-in by code; a new email is verified only if
+        `email_verified` says so. The old email or phone stops signing in at
+        once, and is free for someone else. A change signs nobody out: call
+        `DELETE …/sessions` for that. Enabling a user does sign them out
+        everywhere, so the sessions they had when disabled stay ended.
+      operationId: adminUpdateUser
+      parameters:
+        - in: path
+          name: user
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserChange'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/User'
+                    type: object
+          description: The user, as changed
+        default:
+          $ref: '#/components/responses/Failure'
+      security:
+        - serverApp: []
+      summary: Change a user's email, phone, password, or whether they're disabled
+  /v1/admin/users/{user}/codes:
+    post:
+      description: |
+        The person types it into the app's usual phone sign-in within
+        `expires_in` seconds. It counts towards the phone's send limits, and
+        replaces any code sent before it. A user with no phone, or one who
+        can't sign in now, is a 422.
+      operationId: adminSupportCode
+      parameters:
+        - in: path
+          name: user
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Actor'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/SupportCode'
+                    type: object
+          description: The code
+        default:
+          $ref: '#/components/responses/Failure'
+      security:
+        - serverApp: []
+      summary: A sign-in code for a user with a phone, handed to you instead of sent
+  /v1/admin/users/{user}/sessions:
+    delete:
+      description: |
+        Their next refresh is refused, and their access tokens live out their
+        few minutes. With `except`, the `sid` of an ID token the user signed
+        in with, that one session goes on.
+      operationId: adminEndSessions
+      parameters:
+        - in: path
+          name: user
+          required: true
+          schema:
+            type: string
+        - description: The sid of the session to keep.
+          in: query
+          name: except
+          schema:
+            type: string
+        - description: Who this is for, for the event log.
+          in: query
+          name: actor
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: '#/components/responses/Done'
+        default:
+          $ref: '#/components/responses/Failure'
+      security:
+        - serverApp: []
+      summary: Sign a user out everywhere, or everywhere but one session
+    get:
+      description: Newest use first, with why each ended one ended.
+      operationId: adminListSessions
+      parameters:
+        - in: path
+          name: user
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        items:
+                          $ref: '#/components/schemas/DeviceSession'
+                        type: array
+                    type: object
+          description: The sessions
+        default:
+          $ref: '#/components/responses/Failure'
+      security:
+        - serverApp: []
+      summary: A user's sessions, ended ones included
+  /v1/admin/users/{user}/sessions/{session}:
+    delete:
+      description: Its next refresh is refused. One that's gone, or ended, is done already.
+      operationId: adminEndSession
+      parameters:
+        - in: path
+          name: user
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: session
+          required: true
+          schema:
+            type: string
+        - description: Who this is for, for the event log.
+          in: query
+          name: actor
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: '#/components/responses/Done'
+        default:
+          $ref: '#/components/responses/Failure'
+      security:
+        - serverApp: []
+      summary: End one of a user's sessions
+  /v1/admin/users/search:
+    post:
+      description: |
+        `result` is the user, or null when no one holds it. An email matches in
+        any case. Two users holding one phone, which the engine allows, is a
+        409: never one of them. A POST, so the email or phone stays out of
+        URLs and access logs.
+      operationId: adminSearchUsers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserSearch'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        allOf:
+                          - $ref: '#/components/schemas/User'
+                        nullable: true
+                    type: object
+          description: The user, or null
+        default:
+          $ref: '#/components/responses/Failure'
+      security:
+        - serverApp: []
+      summary: The one user who holds an email or a phone
+  /v1/codes:
+    post:
+      description: |
+        A phone gets a sign-in code. An email gets a verification code, if it
+        has an unverified account; the message links to the app's verify page.
+        Always 202 within the limits, whether or not there's an account, or
+        anything to send. Over a limit, or when the limits can't be counted,
+        it's refused and nothing is sent.
+      operationId: sendCode
+      parameters:
+        - $ref: '#/components/parameters/clientAddress'
+        - $ref: '#/components/parameters/clientCity'
+        - $ref: '#/components/parameters/clientCountry'
+        - $ref: '#/components/parameters/clientAgent'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CodeRequest'
+        required: true
+      responses:
+        "202":
+          $ref: '#/components/responses/Done'
+        default:
+          $ref: '#/components/responses/Failure'
+      security:
+        - {}
+        - serverSecret: []
+      summary: Send a sign-in code to a phone, or a verification code to an email
+  /v1/email-verifications:
+    post:
+      description: |
+        A wrong or expired code, too many wrong guesses, and an email with no
+        account all get the same 422. Too many wrong guesses spend the code, so
+        a new one must be sent.
+      operationId: verifyEmail
+      parameters:
+        - $ref: '#/components/parameters/clientAddress'
+        - $ref: '#/components/parameters/clientCity'
+        - $ref: '#/components/parameters/clientCountry'
+        - $ref: '#/components/parameters/clientAgent'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailVerification'
+        required: true
+      responses:
+        "200":
+          $ref: '#/components/responses/Done'
+        default:
+          $ref: '#/components/responses/Failure'
+      security:
+        - {}
+        - serverSecret: []
+      summary: Verify an email with the code sent to it
+  /v1/password-resets:
+    post:
+      description: |
+        Always 202 within the limits, whether or not the email has an account.
+        The code is mailed alone, for the app to ask for on its own screens.
+      operationId: requestPasswordReset
+      parameters:
+        - $ref: '#/components/parameters/clientAddress'
+        - $ref: '#/components/parameters/clientCity'
+        - $ref: '#/components/parameters/clientCountry'
+        - $ref: '#/components/parameters/clientAgent'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetRequest'
+        required: true
+      responses:
+        "202":
+          $ref: '#/components/responses/Done'
+        default:
+          $ref: '#/components/responses/Failure'
+      security:
+        - {}
+        - serverSecret: []
+      summary: Mail a password reset code
+  /v1/password-resets/complete:
+    post:
+      description: |
+        A wrong or expired code, too many wrong guesses, and an email with no
+        account all get the same 422. A reset signs the user out everywhere.
+      operationId: completePasswordReset
+      parameters:
+        - $ref: '#/components/parameters/clientAddress'
+        - $ref: '#/components/parameters/clientCity'
+        - $ref: '#/components/parameters/clientCountry'
+        - $ref: '#/components/parameters/clientAgent'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetCompletion'
+        required: true
+      responses:
+        "200":
+          $ref: '#/components/responses/Done'
+        default:
+          $ref: '#/components/responses/Failure'
+      security:
+        - {}
+        - serverSecret: []
+      summary: Set a new password with the code mailed
+  /v1/sessions:
+    post:
+      operationId: signIn
+      parameters:
+        - $ref: '#/components/parameters/clientAddress'
+        - $ref: '#/components/parameters/clientCity'
+        - $ref: '#/components/parameters/clientCountry'
+        - $ref: '#/components/parameters/clientAgent'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignIn'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/Tokens'
+                    type: object
+          description: Signed in
+        default:
+          $ref: '#/components/responses/Failure'
+      security:
+        - {}
+        - serverSecret: []
+      summary: Sign in with an email and password, or a phone and a code
+  /v1/sessions/refresh:
+    post:
+      description: The refresh token is rotated on every use.
+      operationId: refresh
+      parameters:
+        - $ref: '#/components/parameters/clientAddress'
+        - $ref: '#/components/parameters/clientCity'
+        - $ref: '#/components/parameters/clientCountry'
+        - $ref: '#/components/parameters/clientAgent'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      result:
+                        $ref: '#/components/schemas/Tokens'
+                    type: object
+          description: New tokens
+        default:
+          $ref: '#/components/responses/Failure'
+      security:
+        - {}
+        - serverSecret: []
+      summary: Exchange a refresh token
+  /v1/sessions/revoke:
+    post:
+      description: |
+        Ends the session a refresh token belongs to, as OAuth token
+        revocation (RFC 7009) does: the refresh token stops working at once,
+        and the session's access token lives out its few minutes. Always 200,
+        whether or not the token was valid.
+      operationId: revoke
+      parameters:
+        - $ref: '#/components/parameters/clientAddress'
+        - $ref: '#/components/parameters/clientCity'
+        - $ref: '#/components/parameters/clientCountry'
+        - $ref: '#/components/parameters/clientAgent'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+        required: true
+      responses:
+        "200":
+          $ref: '#/components/responses/Done'
+        default:
+          $ref: '#/components/responses/Failure'
+      security:
+        - {}
+        - serverSecret: []
+      summary: Sign out
+  /v1/users:
+    post:
+      description: |
+        Always 202, whether or not the email or phone already has an account.
+        A phone user then asks for a code and signs in with it.
+      operationId: signUp
+      parameters:
+        - $ref: '#/components/parameters/clientAddress'
+        - $ref: '#/components/parameters/clientCity'
+        - $ref: '#/components/parameters/clientCountry'
+        - $ref: '#/components/parameters/clientAgent'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignUp'
+        required: true
+      responses:
+        "202":
+          $ref: '#/components/responses/Done'
+        default:
+          $ref: '#/components/responses/Failure'
+      security:
+        - {}
+        - serverSecret: []
+      summary: Sign up with an email and password, or a phone
+components:
+  parameters:
+    clientAddress:
+      description: |
+        The person's IP address, beside `Edgescale-Server-Secret`. It counts
+        in the per-address limits. One that isn't an IP address isn't stored,
+        and `messages` says so with code 3000; without the secret it's
+        ignored, and `messages` says that too.
+      in: header
+      name: Edgescale-Client-Address
+      schema:
+        example: 203.0.113.7
+        type: string
+    clientAgent:
+      description: The person's browser `User-Agent`, beside `Edgescale-Server-Secret`, cut past 64 characters.
+      in: header
+      name: Edgescale-Client-Agent
+      schema:
+        type: string
+    clientCity:
+      description: The person's city, beside `Edgescale-Server-Secret`, cut past 64 characters.
+      in: header
+      name: Edgescale-Client-City
+      schema:
+        example: Baghdad
+        type: string
+    clientCountry:
+      description: |
+        The person's country, an ISO 3166 code, beside
+        `Edgescale-Server-Secret`. One that isn't two letters isn't stored,
+        and `messages` says so with code 3000.
+      in: header
+      name: Edgescale-Client-Country
+      schema:
+        example: IQ
+        type: string
+  responses:
+    Done:
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Envelope'
+              - properties:
+                  result:
+                    nullable: true
+                type: object
+      description: Done, with nothing to return. `result` is null.
+    Failure:
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Envelope'
+              - properties:
+                  result:
+                    nullable: true
+                type: object
+      description: A failure. `success` is false and `result` is null.
+  schemas:
+    Actor:
+      properties:
+        actor:
+          description: Who this is for, for the event log.
+          type: string
+      type: object
+    CodeRequest:
+      description: A phone or an email, not both.
+      properties:
+        client_id:
+          type: string
+        email:
+          example: someone@example.com
+          type: string
+        language:
+          description: The language the code's message should be in, passed to the sender.
+          example: ar
+          type: string
+        phone:
+          description: E.164.
+          example: "+9647701234567"
+          type: string
+        turnstile_token:
+          description: The Turnstile token, when the pool's bot check is on.
+          type: string
+          writeOnly: true
+      required:
+        - client_id
+      type: object
+    DeviceSession:
+      properties:
+        address:
+          description: The last address it was used from, or empty.
+          type: string
+        app:
+          properties:
+            client_id:
+              type: string
+            name:
+              description: The app's name on the Auth tab.
+              type: string
+            version:
+              description: As the app sent it, or empty.
+              type: string
+          required:
+            - client_id
+            - name
+            - version
+          type: object
+        current:
+          description: The caller's own; always false on the server API.
+          type: boolean
+        device:
+          properties:
+            name:
+              description: As the app sent it, a guess such as Chrome on macOS for a browser, or empty.
+              type: string
+            os:
+              type: string
+          required:
+            - name
+            - os
+          type: object
+        ended_at:
+          description: The server API only.
+          format: date-time
+          nullable: true
+          type: string
+        ended_reason:
+          description: 'The server API only: signed_out, ended, everywhere or stolen.'
+          type: string
+        id:
+          description: The session's ID token's sid.
+          type: string
+        last_used_at:
+          description: Its last sign-in or refresh.
+          format: date-time
+          type: string
+        location:
+          properties:
+            city:
+              type: string
+            country:
+              description: ISO 3166-1 alpha-2, or empty.
+              type: string
+          required:
+            - city
+            - country
+          type: object
+        started_at:
+          format: date-time
+          type: string
+      required:
+        - id
+        - current
+        - app
+        - device
+        - location
+        - address
+        - started_at
+        - last_used_at
+      type: object
+    EmailVerification:
+      properties:
+        client_id:
+          type: string
+        code:
+          type: string
+          writeOnly: true
+        email:
+          example: someone@example.com
+          type: string
+      required:
+        - client_id
+        - email
+        - code
+      type: object
+    Envelope:
+      properties:
+        errors:
+          items:
+            $ref: '#/components/schemas/Message'
+          type: array
+        messages:
+          items:
+            $ref: '#/components/schemas/Message'
+          type: array
+        success:
+          type: boolean
+      required:
+        - success
+        - errors
+        - messages
+        - result
+      type: object
+    Import:
+      properties:
+        actor:
+          description: Who this is for, for the event log.
+          type: string
+        users:
+          items:
+            $ref: '#/components/schemas/ImportedUser'
+          maxItems: 100
+          minItems: 1
+          type: array
+      required:
+        - users
+      type: object
+    ImportResult:
+      properties:
+        created:
+          type: integer
+        failed:
+          items:
+            properties:
+              id:
+                type: string
+              reason:
+                type: string
+            required:
+              - id
+              - reason
+            type: object
+          type: array
+        skipped:
+          description: Users whose id exists already.
+          type: integer
+      required:
+        - created
+        - skipped
+        - failed
+      type: object
+    ImportedUser:
+      properties:
+        email:
+          type: string
+        email_verified:
+          type: boolean
+        id:
+          type: string
+        name:
+          type: string
+        password_hash:
+          properties:
+            algorithm:
+              enum:
+                - bcrypt
+              type: string
+            value:
+              description: $2a$, $2b$ or $2y$.
+              type: string
+              writeOnly: true
+          required:
+            - algorithm
+            - value
+          type: object
+        phone:
+          type: string
+      required:
+        - id
+      type: object
+    Message:
+      properties:
+        code:
+          minimum: 1000
+          type: integer
+        documentation_url:
+          format: uri
+          type: string
+        message:
+          type: string
+        source:
+          properties:
+            pointer:
+              description: A JSON Pointer to the field at fault.
+              type: string
+          type: object
+      required:
+        - code
+        - message
+      type: object
+    NewUser:
+      description: An email, a phone, or both.
+      properties:
+        actor:
+          description: Who this is for, for the event log.
+          type: string
+        email:
+          type: string
+        email_verified:
+          type: boolean
+        id:
+          description: 1 to 128 letters, digits, '-' or '_', such as a Firebase UID.
+          type: string
+        name:
+          type: string
+        password:
+          type: string
+          writeOnly: true
+        phone:
+          description: E.164.
+          type: string
+      type: object
+    RefreshRequest:
+      properties:
+        app_version:
+          example: 13.2.2
+          type: string
+        client_id:
+          type: string
+        device_name:
+          description: 'The device, as the app names it: up to 64 characters, cut past that.'
+          example: iPhone 17 Pro
+          type: string
+        device_os:
+          example: iOS 26.1
+          type: string
+        refresh_token:
+          type: string
+          writeOnly: true
+      required:
+        - client_id
+        - refresh_token
+      type: object
+    ResetCompletion:
+      properties:
+        client_id:
+          type: string
+        code:
+          type: string
+          writeOnly: true
+        email:
+          type: string
+        password:
+          type: string
+          writeOnly: true
+      required:
+        - client_id
+        - email
+        - code
+        - password
+      type: object
+    ResetRequest:
+      properties:
+        client_id:
+          type: string
+        email:
+          type: string
+        language:
+          example: ar
+          type: string
+        turnstile_token:
+          description: The Turnstile token, when the pool's bot check is on.
+          type: string
+          writeOnly: true
+      required:
+        - client_id
+        - email
+      type: object
+    SignIn:
+      description: An email and a password, or a phone and the code sent to it.
+      properties:
+        app_version:
+          example: 13.2.2
+          type: string
+        client_id:
+          type: string
+        code:
+          type: string
+          writeOnly: true
+        device_name:
+          description: 'The device, as the app names it: up to 64 characters, cut past that.'
+          example: iPhone 17 Pro
+          type: string
+        device_os:
+          example: iOS 26.1
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+          writeOnly: true
+        phone:
+          type: string
+      required:
+        - client_id
+      type: object
+    SignUp:
+      description: An email and a password, or a phone alone.
+      properties:
+        client_id:
+          type: string
+        email:
+          example: someone@example.com
+          type: string
+        name:
+          type: string
+        password:
+          type: string
+          writeOnly: true
+        phone:
+          description: E.164.
+          example: "+9647701234567"
+          type: string
+        turnstile_token:
+          description: The Turnstile token, when the pool's bot check is on and the sign-up has an email.
+          type: string
+          writeOnly: true
+      required:
+        - client_id
+      type: object
+    SupportCode:
+      properties:
+        code:
+          type: string
+        expires_in:
+          description: Seconds.
+          type: integer
+        phone:
+          description: The phone it signs in with.
+          type: string
+      required:
+        - code
+        - phone
+        - expires_in
+      type: object
+    Tokens:
+      properties:
+        access_token:
+          description: A JWT.
+          type: string
+        expires_in:
+          description: The access token's lifetime in seconds.
+          type: integer
+        id_token:
+          description: 'A JWT: sub, amr and auth_time, with email and phone_number when real.'
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          enum:
+            - Bearer
+          type: string
+      required:
+        - id_token
+        - access_token
+        - refresh_token
+        - token_type
+        - expires_in
+      type: object
+    User:
+      properties:
+        created_at:
+          format: date-time
+          type: string
+        disabled:
+          description: Refused sign-in and refresh until enabled again.
+          type: boolean
+        email:
+          description: Empty for a phone user with no email.
+          type: string
+        email_verified:
+          type: boolean
+        has_password:
+          type: boolean
+        id:
+          description: The ID tokens' sub.
+          type: string
+        phone:
+          description: E.164, or empty.
+          type: string
+        phone_codes_paused_until:
+          description: Until then no sign-in code goes to the phone, after a stolen report.
+          format: date-time
+          nullable: true
+          type: string
+      required:
+        - id
+        - email
+        - email_verified
+        - phone
+        - has_password
+        - disabled
+        - created_at
+      type: object
+    UserChange:
+      description: Each field left out stays as it is.
+      properties:
+        actor:
+          description: Who this is for, for the event log.
+          type: string
+        disabled:
+          type: boolean
+        email:
+          example: someone@example.com
+          type: string
+        email_verified:
+          type: boolean
+        password:
+          type: string
+          writeOnly: true
+        phone:
+          description: E.164.
+          example: "+9647701234567"
+          type: string
+        phone_codes_paused:
+          description: false lifts a stolen report's pause on the phone's codes; true is a 422.
+          type: boolean
+      type: object
+    UserSearch:
+      description: An email or a phone, not both.
+      properties:
+        email:
+          example: someone@example.com
+          type: string
+        phone:
+          description: E.164.
+          example: "+9647701234567"
+          type: string
+      type: object
+  securitySchemes:
+    serverApp:
+      description: A server app's secret, `eds_as_…`, made in the dashboard's Auth tab.
+      scheme: bearer
+      type: http
+    serverSecret:
+      description: |
+        A server app's secret, `eds_as_…`, from a backend that calls for one
+        of its users. With it, auth records only what the
+        `Edgescale-Client-*` headers say about the person, never the
+        backend's own address. A wrong secret is a 401.
+      in: header
+      name: Edgescale-Server-Secret
+      type: apiKey
