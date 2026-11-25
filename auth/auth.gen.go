@@ -745,8 +745,10 @@ type ClientInterface interface {
 	// verified, with sign-in by code; a new email is verified only if
 	// `email_verified` says so. The old email or phone stops signing in at
 	// once, and is free for someone else. A change signs nobody out: call
-	// `DELETE …/sessions` for that. Enabling a user does sign them out
-	// everywhere, so the sessions they had when disabled stay ended.
+	// `DELETE …/sessions` for that. A new password ends a lock that wrong
+	// passwords put on the user's email, as a reset does. Enabling a user
+	// does sign them out everywhere, so the sessions they had when disabled
+	// stay ended.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -759,8 +761,10 @@ type ClientInterface interface {
 	// verified, with sign-in by code; a new email is verified only if
 	// `email_verified` says so. The old email or phone stops signing in at
 	// once, and is free for someone else. A change signs nobody out: call
-	// `DELETE …/sessions` for that. Enabling a user does sign them out
-	// everywhere, so the sessions they had when disabled stay ended.
+	// `DELETE …/sessions` for that. A new password ends a lock that wrong
+	// passwords put on the user's email, as a reset does. Enabling a user
+	// does sign them out everywhere, so the sessions they had when disabled
+	// stay ended.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -1128,8 +1132,10 @@ func (c *Client) AdminGetUser(ctx context.Context, user string, reqEditors ...Re
 // verified, with sign-in by code; a new email is verified only if
 // `email_verified` says so. The old email or phone stops signing in at
 // once, and is free for someone else. A change signs nobody out: call
-// `DELETE …/sessions` for that. Enabling a user does sign them out
-// everywhere, so the sessions they had when disabled stay ended.
+// `DELETE …/sessions` for that. A new password ends a lock that wrong
+// passwords put on the user's email, as a reset does. Enabling a user
+// does sign them out everywhere, so the sessions they had when disabled
+// stay ended.
 //
 // Takes any type of body and a specified content type.
 //
@@ -1152,8 +1158,10 @@ func (c *Client) AdminUpdateUserWithBody(ctx context.Context, user string, conte
 // verified, with sign-in by code; a new email is verified only if
 // `email_verified` says so. The old email or phone stops signing in at
 // once, and is free for someone else. A change signs nobody out: call
-// `DELETE …/sessions` for that. Enabling a user does sign them out
-// everywhere, so the sessions they had when disabled stay ended.
+// `DELETE …/sessions` for that. A new password ends a lock that wrong
+// passwords put on the user's email, as a reset does. Enabling a user
+// does sign them out everywhere, so the sessions they had when disabled
+// stay ended.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -2843,8 +2851,10 @@ type ClientWithResponsesInterface interface {
 	// verified, with sign-in by code; a new email is verified only if
 	// `email_verified` says so. The old email or phone stops signing in at
 	// once, and is free for someone else. A change signs nobody out: call
-	// `DELETE …/sessions` for that. Enabling a user does sign them out
-	// everywhere, so the sessions they had when disabled stay ended.
+	// `DELETE …/sessions` for that. A new password ends a lock that wrong
+	// passwords put on the user's email, as a reset does. Enabling a user
+	// does sign them out everywhere, so the sessions they had when disabled
+	// stay ended.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -2857,8 +2867,10 @@ type ClientWithResponsesInterface interface {
 	// verified, with sign-in by code; a new email is verified only if
 	// `email_verified` says so. The old email or phone stops signing in at
 	// once, and is free for someone else. A change signs nobody out: call
-	// `DELETE …/sessions` for that. Enabling a user does sign them out
-	// everywhere, so the sessions they had when disabled stay ended.
+	// `DELETE …/sessions` for that. A new password ends a lock that wrong
+	// passwords put on the user's email, as a reset does. Enabling a user
+	// does sign them out everywhere, so the sessions they had when disabled
+	// stay ended.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -4112,8 +4124,10 @@ func (c *ClientWithResponses) AdminGetUserWithResponse(ctx context.Context, user
 // verified, with sign-in by code; a new email is verified only if
 // `email_verified` says so. The old email or phone stops signing in at
 // once, and is free for someone else. A change signs nobody out: call
-// `DELETE …/sessions` for that. Enabling a user does sign them out
-// everywhere, so the sessions they had when disabled stay ended.
+// `DELETE …/sessions` for that. A new password ends a lock that wrong
+// passwords put on the user's email, as a reset does. Enabling a user
+// does sign them out everywhere, so the sessions they had when disabled
+// stay ended.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -4132,8 +4146,10 @@ func (c *ClientWithResponses) AdminUpdateUserWithBodyWithResponse(ctx context.Co
 // verified, with sign-in by code; a new email is verified only if
 // `email_verified` says so. The old email or phone stops signing in at
 // once, and is free for someone else. A change signs nobody out: call
-// `DELETE …/sessions` for that. Enabling a user does sign them out
-// everywhere, so the sessions they had when disabled stay ended.
+// `DELETE …/sessions` for that. A new password ends a lock that wrong
+// passwords put on the user's email, as a reset does. Enabling a user
+// does sign them out everywhere, so the sessions they had when disabled
+// stay ended.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
