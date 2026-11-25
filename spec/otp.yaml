@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: Edgescale OTP API
   version: 0.1.0
-  x-source: 714f7c3fc02c34a48e5e3a3abbf2ec4af83e411b
+  x-source: 7182979ee400471b2ec6a0e1e21e690ca7859289
 servers:
   - url: https://{uid}.projects.apisdomain.dev
     variables:

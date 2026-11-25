@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: Edgescale Identity API
   version: 0.1.0
-  x-source: 714f7c3fc02c34a48e5e3a3abbf2ec4af83e411b
+  x-source: 7182979ee400471b2ec6a0e1e21e690ca7859289
 servers:
   - url: https://{uid}.auth.apisdomain.dev
     variables:
@@ -106,8 +106,10 @@ paths:
         verified, with sign-in by code; a new email is verified only if
         `email_verified` says so. The old email or phone stops signing in at
         once, and is free for someone else. A change signs nobody out: call
-        `DELETE …/sessions` for that. Enabling a user does sign them out
-        everywhere, so the sessions they had when disabled stay ended.
+        `DELETE …/sessions` for that. A new password ends a lock that wrong
+        passwords put on the user's email, as a reset does. Enabling a user
+        does sign them out everywhere, so the sessions they had when disabled
+        stay ended.
       operationId: adminUpdateUser
       parameters:
         - in: path
